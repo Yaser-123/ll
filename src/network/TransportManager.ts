@@ -34,7 +34,9 @@ class TransportManager {
    * Call this before start() or at any time — manager will auto-start it.
    */
   registerTransport(transport: ITransport): void {
-    this.transports.push(transport);
+    if (!this.transports.some((t) => t.id === transport.id)) {
+      this.transports.push(transport);
+    }
     if (this.events) {
       // Already running — start the new transport immediately
       transport.start(this.events).catch(console.error);

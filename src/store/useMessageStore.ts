@@ -33,6 +33,7 @@ export const useMessageStore = create<MessageState>((set, get) => ({
   },
 
   addMessage: async (message: Message) => {
+    if (get().messages.some((m) => m.id === message.id)) return;
     const messages = [message, ...get().messages].slice(0, MAX_MESSAGES);
     set({ messages });
     await StorageService.set(STORAGE_KEY, messages);
