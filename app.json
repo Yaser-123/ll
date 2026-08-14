@@ -1,25 +1,72 @@
 {
   "expo": {
-    "name": "LifeLine",
-    "slug": "LifeLine",
-    "version": "1.0.0",
+    "name": "LIFELINE",
+    "slug": "lifeline",
+    "version": "0.1.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "light",
+    "userInterfaceStyle": "dark",
+    "backgroundColor": "#0A0C10",
+    "scheme": "lifeline",
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": false,
+      "bundleIdentifier": "com.lifeline.app",
+      "infoPlist": {
+        "NSBluetoothAlwaysUsageDescription": "LIFELINE uses Bluetooth to discover and communicate with nearby emergency devices. No location data is used or uploaded — Bluetooth is only used for local peer discovery.",
+        "NSBluetoothPeripheralUsageDescription": "LIFELINE broadcasts its presence via Bluetooth so other nearby LIFELINE devices can discover it during emergencies.",
+        "UIBackgroundModes": []
+      }
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
+        "backgroundColor": "#0A0C10",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
-      "predictiveBackGestureEnabled": false
+      "package": "com.lifeline.app",
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "android.permission.BLUETOOTH",
+        "android.permission.BLUETOOTH_ADMIN",
+        "android.permission.BLUETOOTH_SCAN",
+        "android.permission.BLUETOOTH_CONNECT",
+        "android.permission.BLUETOOTH_ADVERTISE",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.ACCESS_COARSE_LOCATION"
+      ]
     },
     "web": {
-      "favicon": "./assets/favicon.png"
-    }
+      "favicon": "./assets/favicon.png",
+      "bundler": "metro"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      "expo-font",
+      "expo-splash-screen",
+      "expo-status-bar",
+      [
+        "react-native-ble-plx",
+        {
+          "isBackgroundEnabled": false,
+          "modes": [
+            "central"
+          ],
+          "bluetoothAlwaysPermission": "Allow LIFELINE to use Bluetooth to discover nearby emergency devices."
+        }
+      ],
+      "expo-asset"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "8165e561-77a6-4217-813d-54df5d2dfe45"
+      }
+    },
+    "owner": "yaser104"
   }
 }

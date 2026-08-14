@@ -1,0 +1,16 @@
+{
+  "name": "lifeline-ble-advertiser",
+  "version": "1.0.0",
+  "description": "BLE Peripheral (advertiser) native module for Lifeline offline peer discovery",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "license": "MIT",
+  "keywords": ["expo-module", "ble", "bluetooth", "peripheral", "advertiser"],
+  "peerDependencies": {
+    "expo": "*",
+    "expo-modules-core": "*",
+    "react-native": "*"
+  },
+  "devDependencies": {},
+  "dependencies": {}
+}
