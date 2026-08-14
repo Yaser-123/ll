@@ -93,7 +93,7 @@ class BleAdvertiserModule : Module() {
             // Advertisement settings — low power mode for battery efficiency
             val settings = AdvertiseSettings.Builder()
                 .setAdvertiseMode(AdvertiseSettings.ADVERTISE_MODE_LOW_POWER)
-                .setConnectable(false)         // Discovery only, no connection needed
+                .setConnectable(true)         // Allow connections for messaging (Module 3)
                 .setTxPowerLevel(AdvertiseSettings.ADVERTISE_TX_POWER_MEDIUM)
                 .setTimeout(0)                  // Advertise indefinitely until stopped
                 .build()
