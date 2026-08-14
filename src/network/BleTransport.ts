@@ -562,7 +562,7 @@ export class BleTransport implements ITransport {
 
         const base64Payload = Buffer.from(packet, 'utf8').toString('base64');
 
-        await connectedDevice.writeCharacteristicWithResponseForService(
+        await connectedDevice.writeCharacteristicWithoutResponseForService(
           MESSAGING_SERVICE_UUID,
           WRITE_CHARACTERISTIC_UUID,
           base64Payload
