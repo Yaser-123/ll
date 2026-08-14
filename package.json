@@ -16,6 +16,7 @@
     "expo-secure-store": "~57.0.1",
     "expo-splash-screen": "~57.0.6",
     "expo-status-bar": "~57.0.1",
+    "expo-system-ui": "~57.0.2",
     "lifeline-ble-advertiser": "file:modules/ble-advertiser",
     "react": "19.2.3",
     "react-native": "0.86.2",
