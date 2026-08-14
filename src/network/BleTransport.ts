@@ -188,6 +188,9 @@ export class BleTransport implements ITransport {
   /** Native message listener subscription */
   private nativeMessageSub: { remove: () => void } | null = null;
 
+  /** Guards against concurrent GATT connection attempts */
+  private isConnecting = false;
+
   constructor(deviceId: string, displayName: string) {
     this.selfDeviceId = deviceId;
     this.selfDisplayName = displayName;
@@ -507,19 +510,45 @@ export class BleTransport implements ITransport {
   private async flushOutbox(shortId: string): Promise<void> {
     const queue = this.outbox.get(shortId);
     if (!queue || queue.length === 0) return;
-    
+
     const macAddress = this.peerDeviceMap.get(shortId);
     if (!macAddress) return;
 
     if (!this.bleManager) return;
-    
+
+    // ── Connection Arbitration ──────────────────────────────────────────────
+    // If both phones discover each other simultaneously, both will try to
+    // connect to each other, causing immediate disconnects. We break the tie
+    // by convention: the phone with the lexicographically HIGHER MAC/ID wins
+    // the right to initiate. The other phone relies on the winner connecting
+    // to IT as a central (which also triggers the GATT server to receive).
+    // normalise by stripping colons so "AA:BB" > "99:ZZ" compares correctly.
+    const selfNorm = this.selfShortId.toUpperCase();
+    const peerNorm = shortId.toUpperCase();
+    if (selfNorm < peerNorm) {
+      // We are the "lower" device — let the peer initiate. Skip outbound
+      // connection but keep messages queued; the peer will connect to us
+      // and we'll deliver when we discover them again next scan cycle.
+      console.log(`[BleTransport] Deferring connection to ${shortId} (peer has higher priority).`);
+      return;
+    }
+
+    // ── Concurrency Lock ───────────────────────────────────────────────────
+    // Android BLE cannot scan while a connection is active. Block concurrent
+    // connection attempts to avoid "Cannot start scanning" errors.
+    if (this.isConnecting) {
+      console.log(`[BleTransport] Already connecting, deferring flush for ${shortId}.`);
+      return;
+    }
+    this.isConnecting = true;
+
     console.log(`[BleTransport] Flushing outbox for ${shortId} (${queue.length} messages)...`);
 
     try {
-      // Pause scanning while we connect to save radio resources and improve connection speed
+      // Pause scanning while we connect (Android cannot do both simultaneously)
       this.stopScanSession();
 
-      // Attempt to clear any hung connections first (safe to call even if not connected)
+      // Clear any hung connections first
       try {
         await this.bleManager.cancelDeviceConnection(macAddress);
       } catch (e) {}
@@ -587,6 +616,7 @@ export class BleTransport implements ITransport {
         await this.bleManager.cancelDeviceConnection(macAddress);
       } catch (e) {}
     } finally {
+      this.isConnecting = false;
       // Resume scanning
       this.startScanSession();
     }
