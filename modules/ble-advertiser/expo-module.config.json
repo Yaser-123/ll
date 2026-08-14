@@ -1,0 +1,10 @@
+{
+  "name": "lifeline-ble-advertiser",
+  "platforms": ["android", "ios"],
+  "android": {
+    "modules": ["expo.modules.bleadvertiser.BleAdvertiserModule"]
+  },
+  "ios": {
+    "modules": ["BleAdvertiserModule"]
+  }
+}
