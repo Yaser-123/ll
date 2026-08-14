@@ -603,8 +603,8 @@ export class BleTransport implements ITransport {
       const msg: Message = {
         id: parsed.messageId,
         senderId: parsed.senderId,
-        recipientId: this.selfDeviceId,
-        conversationId: [parsed.senderId, this.selfDeviceId].sort().join('_'),
+        recipientId: 'global',
+        conversationId: 'global',
         type: 'text',
         text: parsed.payload,
         status: 'delivered',
