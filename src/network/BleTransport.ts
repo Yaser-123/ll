@@ -173,6 +173,9 @@ export class BleTransport implements ITransport {
   /** Queue for messages to peers that are currently offline or busy */
   private outbox = new Map<string, Message[]>();
 
+  /** Maps Lifeline shortId to the most-recently-seen Device object */
+  private peerDeviceObjectMap = new Map<string, Device>();
+
   /** Last advertisement timestamp per peer shortId */
   private peerLastSeen = new Map<string, number>();
 
@@ -455,6 +458,7 @@ export class BleTransport implements ITransport {
 
     this.peerLastSeen.set(shortId, now);
     this.peerDeviceMap.set(shortId, device.id);
+    this.peerDeviceObjectMap.set(shortId, device);  // Always keep the freshest Device ref
 
     const existingPeer = this.activePeers.get(shortId);
 
@@ -477,8 +481,11 @@ export class BleTransport implements ITransport {
       console.log(
         `[BleTransport] Peer discovered: ${displayName} (${shortId}) RSSI=${device.rssi}`
       );
-      // Flush outbox in case we have queued messages
-      this.flushOutbox(shortId);
+      // Flush outbox in case we have queued messages, passing the fresh Device object
+      this.flushOutbox(shortId, device);
+    } else {
+      // Already online — update device ref in case MAC rotated
+      this.flushOutbox(shortId, device);
     }
   }
 
@@ -507,35 +514,28 @@ export class BleTransport implements ITransport {
   // Active Connection & Messaging
   // ─────────────────────────────────────────────────────────────────────────
 
-  private async flushOutbox(shortId: string): Promise<void> {
+  private async flushOutbox(shortId: string, freshDevice?: Device): Promise<void> {
     const queue = this.outbox.get(shortId);
     if (!queue || queue.length === 0) return;
 
-    const macAddress = this.peerDeviceMap.get(shortId);
-    if (!macAddress) return;
+    // Use the freshest Device object we have — this avoids stale/rotated MACs
+    const device = freshDevice ?? this.peerDeviceObjectMap.get(shortId);
+    if (!device) {
+      console.warn(`[BleTransport] No device object for ${shortId}, cannot flush.`);
+      return;
+    }
 
     if (!this.bleManager) return;
 
     // ── Connection Arbitration ──────────────────────────────────────────────
-    // If both phones discover each other simultaneously, both will try to
-    // connect to each other, causing immediate disconnects. We break the tie
-    // by convention: the phone with the lexicographically HIGHER MAC/ID wins
-    // the right to initiate. The other phone relies on the winner connecting
-    // to IT as a central (which also triggers the GATT server to receive).
-    // normalise by stripping colons so "AA:BB" > "99:ZZ" compares correctly.
     const selfNorm = this.selfShortId.toUpperCase();
     const peerNorm = shortId.toUpperCase();
     if (selfNorm < peerNorm) {
-      // We are the "lower" device — let the peer initiate. Skip outbound
-      // connection but keep messages queued; the peer will connect to us
-      // and we'll deliver when we discover them again next scan cycle.
-      console.log(`[BleTransport] Deferring connection to ${shortId} (peer has higher priority).`);
+      console.log(`[BleTransport] Deferring to ${shortId} (peer has higher priority).`);
       return;
     }
 
     // ── Concurrency Lock ───────────────────────────────────────────────────
-    // Android BLE cannot scan while a connection is active. Block concurrent
-    // connection attempts to avoid "Cannot start scanning" errors.
     if (this.isConnecting) {
       console.log(`[BleTransport] Already connecting, deferring flush for ${shortId}.`);
       return;
@@ -545,17 +545,12 @@ export class BleTransport implements ITransport {
     console.log(`[BleTransport] Flushing outbox for ${shortId} (${queue.length} messages)...`);
 
     try {
-      // Pause scanning while we connect (Android cannot do both simultaneously)
+      // Stop scanning — Android cannot scan while holding a GATT connection
       this.stopScanSession();
+      // Small delay to let Android fully release the scanning radio
+      await new Promise(resolve => setTimeout(resolve, 300));
 
-      // Clear any hung connections first
-      try {
-        await this.bleManager.cancelDeviceConnection(macAddress);
-      } catch (e) {}
-
-      const connectedDevice = await this.bleManager.connectToDevice(macAddress, {
-        timeout: 10000,
-      });
+      const connectedDevice = await device.connect({ timeout: 10000 });
 
       console.log(`[BleTransport] Connected to ${shortId}. Waiting for GATT to settle...`);
       // Android GATT requires a small delay after connecting before discovery is stable
