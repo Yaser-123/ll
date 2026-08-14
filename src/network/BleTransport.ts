@@ -519,8 +519,13 @@ export class BleTransport implements ITransport {
       // Pause scanning while we connect to save radio resources and improve connection speed
       this.stopScanSession();
 
+      // Attempt to clear any hung connections first (safe to call even if not connected)
+      try {
+        await this.bleManager.cancelDeviceConnection(macAddress);
+      } catch (e) {}
+
       const connectedDevice = await this.bleManager.connectToDevice(macAddress, {
-        timeout: 5000,
+        timeout: 10000,
       });
 
       console.log(`[BleTransport] Connected to ${shortId}. Discovering services...`);
