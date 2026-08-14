@@ -134,10 +134,29 @@ class BleAdvertiserModule : Module() {
             advertiser = leAdvertiser
             leAdvertiser.startAdvertising(settings, advertiseData, scanResponse, advertiseCallback)
 
+            // Close any previously opened GATT server before creating a new one.
+            // Without this, hot-reloading creates duplicate GATT servers that cause
+            // immediate disconnections on incoming connection attempts.
+            try {
+                gattServer?.close()
+                gattServer = null
+            } catch (e: Exception) {
+                Log.w(TAG, "Error closing old GATT server: ${e.message}")
+            }
+
             // Also start GATT Server to receive incoming messages
             val gattServerCallback = object : BluetoothGattServerCallback() {
                 override fun onConnectionStateChange(device: BluetoothDevice, status: Int, newState: Int) {
-                    Log.d(TAG, "GATT Server ConnectionStateChange: ${device.address} status=$status newState=$newState")
+                    val stateStr = if (newState == BluetoothProfile.STATE_CONNECTED) "CONNECTED" else "DISCONNECTED"
+                    Log.i(TAG, "GATT Server: ${device.address} → $stateStr (status=$status)")
+                }
+
+                override fun onServiceAdded(status: Int, service: BluetoothGattService) {
+                    if (status == BluetoothGatt.GATT_SUCCESS) {
+                        Log.i(TAG, "GATT Server: Messaging service registered successfully.")
+                    } else {
+                        Log.e(TAG, "GATT Server: Failed to register messaging service, status=$status")
+                    }
                 }
 
                 override fun onCharacteristicWriteRequest(
