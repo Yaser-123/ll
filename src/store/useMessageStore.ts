@@ -28,8 +28,17 @@ export const useMessageStore = create<MessageState>((set, get) => ({
   isLoaded: false,
 
   loadMessages: async () => {
-    const stored = await StorageService.get<Message[]>(STORAGE_KEY);
-    set({ messages: stored ?? [], isLoaded: true });
+    const stored = await StorageService.get<Message[]>(STORAGE_KEY) ?? [];
+    
+    // Deduplicate any corrupted data from older buggy versions
+    const uniqueMessages = Array.from(new Map(stored.map((m) => [m.id, m])).values());
+    
+    set({ messages: uniqueMessages, isLoaded: true });
+
+    // Auto-heal local storage
+    if (uniqueMessages.length !== stored.length) {
+      await StorageService.set(STORAGE_KEY, uniqueMessages);
+    }
   },
 
   addMessage: async (message: Message) => {
