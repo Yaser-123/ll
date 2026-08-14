@@ -44,7 +44,7 @@
 import { Platform } from 'react-native';
 import { BleManager, State, type Device, type Subscription } from 'react-native-ble-plx';
 import * as BleAdvertiser from 'lifeline-ble-advertiser';
-import { encode as btoa, decode as atob } from 'base-64';
+import { Buffer } from 'buffer';
 import { requestBlePermissions } from '../services/PermissionService';
 import type { ITransport, TransportEvents, TransportState } from './ITransport';
 import type { Peer } from '../domain/Peer';
@@ -554,7 +554,7 @@ export class BleTransport implements ITransport {
           payload: msg.text,
         });
 
-        const base64Payload = btoa(packet);
+        const base64Payload = Buffer.from(packet, 'utf8').toString('base64');
 
         await connectedDevice.writeCharacteristicWithResponseForService(
           MESSAGING_SERVICE_UUID,
