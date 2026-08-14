@@ -14,7 +14,7 @@
  *   await BleAdvertiser.stopAdvertising();
  */
 
-import { requireNativeModule } from 'expo-modules-core';
+import { requireNativeModule, EventEmitter } from 'expo-modules-core';
 
 // The native module registered under the name 'BleAdvertiser' in both
 // BleAdvertiserModule.kt and BleAdvertiserModule.swift.
@@ -26,6 +26,8 @@ const NativeModule = (() => {
     return null;
   }
 })();
+
+const emitter = NativeModule ? new EventEmitter(NativeModule) : null;
 
 /**
  * Start BLE advertising with the given service UUID and local name.
@@ -80,8 +82,6 @@ export function isAvailable(): boolean {
 export function addMessageListener(
   listener: (event: { payload: string }) => void
 ) {
-  if (!NativeModule) return { remove: () => {} };
-  
-  // Expo's EventEmitter adds an addListener function to the module
-  return NativeModule.addListener('onMessageReceived', listener);
+  if (!emitter) return { remove: () => {} };
+  return emitter.addListener('onMessageReceived', listener);
 }
