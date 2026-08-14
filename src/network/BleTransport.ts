@@ -528,17 +528,23 @@ export class BleTransport implements ITransport {
         timeout: 10000,
       });
 
-      console.log(`[BleTransport] Connected to ${shortId}. Discovering services...`);
-      await connectedDevice.discoverAllServicesAndCharacteristics();
+      console.log(`[BleTransport] Connected to ${shortId}. Waiting for GATT to settle...`);
+      // Android GATT requires a small delay after connecting before discovery is stable
+      await new Promise(resolve => setTimeout(resolve, 1000));
 
-      // Maximize MTU on Android to fit our JSON messages (up to 512 bytes)
+      // Maximize MTU on Android BEFORE discovering services (more stable on some OS versions)
       if (Platform.OS === 'android') {
         try {
+          console.log(`[BleTransport] Requesting MTU...`);
           await connectedDevice.requestMTU(512);
         } catch (e) {
           console.warn(`[BleTransport] Failed to request MTU:`, e);
         }
       }
+
+      console.log(`[BleTransport] Discovering services...`);
+      await connectedDevice.discoverAllServicesAndCharacteristics();
+      console.log(`[BleTransport] Services discovered successfully.`);
 
       // Send all queued messages
       while (queue.length > 0) {
