@@ -18,7 +18,7 @@ import { Colors, Typography, Spacing, Radius, Shadow } from '../src/theme';
 import { useAiStore } from '../src/store/useAiStore';
 import { aiService, type AiMessage } from '../src/services/AiService';
 import uuid from 'react-native-uuid';
-import Markdown from 'react-native-markdown-display';
+import Markdown from 'react-native-marked';
 
 const MODEL_URL =
   'https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF/resolve/main/qwen2.5-1.5b-instruct-q4_k_m.gguf';
@@ -290,9 +290,18 @@ export default function AiScreen() {
                       {item.text}
                     </Text>
                   ) : (
-                    <Markdown style={markdownStylesAi}>
-                      {item.text}
-                    </Markdown>
+                    <Markdown 
+                      value={item.text}
+                      theme={{
+                        colors: {
+                          text: Colors.textPrimary,
+                          background: 'transparent',
+                          border: Colors.surfaceBorder,
+                          code: Colors.info,
+                          link: Colors.primary,
+                        }
+                      }}
+                    />
                   )}
                 </View>
               </View>
@@ -443,31 +452,5 @@ const styles = StyleSheet.create({
   historyItemTitle: { color: Colors.textPrimary, fontSize: Typography.size.md, fontWeight: '500', marginBottom: 4 },
   historyItemDate: { color: Colors.textTertiary, fontSize: Typography.size.xs },
   emptyHistory: { color: Colors.textTertiary, textAlign: 'center', marginTop: Spacing.xl },
-});
-
-const markdownStylesAi = StyleSheet.create({
-  body: { color: Colors.textPrimary, fontSize: Typography.size.md, lineHeight: 22 },
-  paragraph: { marginTop: 0, marginBottom: 8 },
-  strong: { fontWeight: 'bold', color: '#FFF' },
-  em: { fontStyle: 'italic' },
-  s: { textDecorationLine: 'line-through' },
-  link: { color: Colors.primary, textDecorationLine: 'underline' },
-  heading1: { fontSize: 24, fontWeight: 'bold', color: Colors.primary, marginVertical: 8 },
-  heading2: { fontSize: 20, fontWeight: 'bold', color: Colors.primary, marginVertical: 8 },
-  heading3: { fontSize: 18, fontWeight: 'bold', marginVertical: 6 },
-  heading4: { fontSize: 16, fontWeight: 'bold', marginVertical: 6 },
-  heading5: { fontSize: 14, fontWeight: 'bold', marginVertical: 4 },
-  heading6: { fontSize: 14, fontWeight: 'bold', color: Colors.textSecondary, marginVertical: 4 },
-  blockquote: { borderLeftWidth: 4, borderLeftColor: Colors.primary, paddingLeft: 8, marginVertical: 8, fontStyle: 'italic', color: Colors.textSecondary },
-  code_inline: { backgroundColor: 'rgba(255,255,255,0.1)', paddingHorizontal: 4, borderRadius: 4, fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace', color: Colors.info },
-  code_block: { backgroundColor: 'rgba(0,0,0,0.5)', padding: 8, borderRadius: 8, fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace', color: Colors.textPrimary, marginVertical: 8 },
-  fence: { backgroundColor: 'rgba(0,0,0,0.5)', padding: 8, borderRadius: 8, fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace', color: Colors.textPrimary, marginVertical: 8 },
-  list_item: { marginVertical: 2 },
-  bullet_list: { marginVertical: 8 },
-  ordered_list: { marginVertical: 8 },
-  table: { borderWidth: 1, borderColor: Colors.surfaceBorder, borderRadius: 4, marginVertical: 8 },
-  tr: { borderBottomWidth: 1, borderBottomColor: Colors.surfaceBorder, flexDirection: 'row' },
-  th: { padding: 6, fontWeight: 'bold', backgroundColor: 'rgba(255,255,255,0.05)', flex: 1 },
-  td: { padding: 6, flex: 1 },
 });
 
