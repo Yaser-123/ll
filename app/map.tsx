@@ -74,7 +74,7 @@ export default function MapScreen() {
       if (selectedBbox) {
         // Nominatim boundingbox: [southLat, northLat, westLng, eastLng]
         const [sLat, nLat, wLng, eLng] = selectedBbox.map(Number);
-        boundsToDownload = [eLng, nLat, wLng, sLat];
+        boundsToDownload = [wLng, sLat, eLng, nLat];
       } else {
         const bounds = await mapRef.current?.getBounds();
         if (!bounds) return;
@@ -307,7 +307,7 @@ export default function MapScreen() {
               <Layer
                 id="route-layer"
                 type="line"
-                style={{
+                paint={{
                   lineColor: Colors.primary,
                   lineWidth: 4,
                   lineOpacity: 0.8,
@@ -322,7 +322,7 @@ export default function MapScreen() {
               <Layer
                 id="selection-line"
                 type="line"
-                style={{
+                paint={{
                   lineColor: '#00FF00',
                   lineWidth: 3,
                   lineOpacity: 0.8,
