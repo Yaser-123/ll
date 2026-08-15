@@ -11,7 +11,6 @@ import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Vibration } from 'react-native';
-import { Audio } from 'expo-av';
 
 import { Colors, Typography } from '../src/theme';
 import { useDeviceStore } from '../src/store/useDeviceStore';
@@ -97,20 +96,6 @@ export default function RootLayout() {
                 
                 if (isNew && sosEvent.originatorId !== selfId) {
                   Vibration.vibrate([0, 1000, 500, 1000, 500, 1000]); // 3 seconds
-                  
-                  // Play beep
-                  try {
-                    const { sound } = await Audio.Sound.createAsync(
-                      // We can just use a simple local asset or system beep, but expo doesn't have system beep out of the box easily.
-                      // Since we don't have an asset, we can just rely on Vibration and a visual alert, or try to load a known URI.
-                      // Let's use a Data URI for a short beep to avoid needing static assets
-                      { uri: 'data:audio/mp3;base64,//OExAAAAANIAAAAAExBTUUzLjEwMKqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq' } // Dummy beep, ideally need real asset. But Vibration is solid.
-                    );
-                    await sound.playAsync();
-                    setTimeout(() => sound.unloadAsync(), 3000);
-                  } catch (e) {
-                    // Fallback if sound fails
-                  }
                 }
                 
                 await sosStore.addEvent(sosEvent);
