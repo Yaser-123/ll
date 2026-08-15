@@ -292,6 +292,7 @@ export default function MapScreen() {
         >
           <Camera
             ref={cameraRef}
+            maxZoomLevel={19}
             initialViewState={{
               zoom: myLoc ? 13 : 2,
               center: myLoc ? [myLoc.longitude, myLoc.latitude] : [0, 0]
