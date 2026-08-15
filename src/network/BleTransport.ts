@@ -562,8 +562,9 @@ export class BleTransport implements ITransport {
       }
 
       console.log(`[BleTransport] Discovering services...`);
-      await connectedDevice.discoverAllServicesAndCharacteristics();
-      console.log(`[BleTransport] Services discovered. MTU=${(connectedDevice as any).mtu ?? 'unknown'}.`);
+      const discoveredDevice = await connectedDevice.discoverAllServicesAndCharacteristics();
+      const mtu = (discoveredDevice as any).mtu ?? (connectedDevice as any).mtu ?? 'unknown';
+      console.log(`[BleTransport] Services discovered. Negotiated MTU=${mtu}.`);
 
       // Send all queued messages
       while (queue.length > 0) {

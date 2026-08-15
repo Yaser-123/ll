@@ -19,6 +19,7 @@ import android.os.ParcelUuid
 import android.util.Log
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
+import java.io.ByteArrayOutputStream
 import java.util.UUID
 
 /**
@@ -42,6 +43,15 @@ class BleAdvertiserModule : Module() {
     private var advertiseCallback: AdvertiseCallback? = null
     private var originalDeviceName: String? = null
     private var gattServer: BluetoothGattServer? = null
+
+    /**
+     * Buffers for Long Write (Prepared Write) protocol.
+     * When the central sends a payload larger than MTU-3 bytes, Android splits it
+     * into multiple PREPARE_WRITE_REQUEST chunks. We buffer them here and assemble
+     * the full message when EXECUTE_WRITE_REQUEST arrives.
+     * Key = remote device address.
+     */
+    private val preparedWriteBuffers = mutableMapOf<String, ByteArrayOutputStream>()
 
     override fun definition() = ModuleDefinition {
         Name("BleAdvertiser")
@@ -160,6 +170,10 @@ class BleAdvertiserModule : Module() {
                     }
                 }
 
+                override fun onMtuChanged(device: BluetoothDevice, mtu: Int) {
+                    Log.i(TAG, "GATT Server: MTU changed to $mtu for ${device.address}")
+                }
+
                 override fun onCharacteristicWriteRequest(
                     device: BluetoothDevice,
                     requestId: Int,
@@ -169,21 +183,49 @@ class BleAdvertiserModule : Module() {
                     offset: Int,
                     value: ByteArray?
                 ) {
-                    super.onCharacteristicWriteRequest(device, requestId, characteristic, preparedWrite, responseNeeded, offset, value)
-                    if (characteristic.uuid.toString().equals(WRITE_CHARACTERISTIC_UUID, ignoreCase = true)) {
-                        if (value != null) {
-                            val payload = String(value, Charsets.UTF_8)
-                            Log.d(TAG, "GATT Server received message: $payload")
-                            this@BleAdvertiserModule.sendEvent("onMessageReceived", mapOf("payload" to payload))
-                        }
-                        if (responseNeeded) {
-                            gattServer?.sendResponse(device, requestId, BluetoothGatt.GATT_SUCCESS, offset, value)
-                        }
-                    } else {
+                    if (!characteristic.uuid.toString().equals(WRITE_CHARACTERISTIC_UUID, ignoreCase = true)) {
                         if (responseNeeded) {
                             gattServer?.sendResponse(device, requestId, BluetoothGatt.GATT_FAILURE, offset, null)
                         }
+                        return
                     }
+
+                    if (preparedWrite) {
+                        // Long Write: buffer each chunk. Reset buffer at offset=0 (start of new message).
+                        val buffer = preparedWriteBuffers.getOrPut(device.address) { ByteArrayOutputStream() }
+                        if (offset == 0) buffer.reset()
+                        value?.let { buffer.write(it) }
+                        Log.d(TAG, "GATT Server: buffered ${value?.size ?: 0} bytes at offset=$offset")
+                    } else {
+                        // Normal single write — process immediately
+                        if (value != null) {
+                            val payload = String(value, Charsets.UTF_8)
+                            Log.d(TAG, "GATT Server received single-write message: $payload")
+                            this@BleAdvertiserModule.sendEvent("onMessageReceived", mapOf("payload" to payload))
+                        }
+                    }
+
+                    if (responseNeeded) {
+                        gattServer?.sendResponse(device, requestId, BluetoothGatt.GATT_SUCCESS, offset, value)
+                    }
+                }
+
+                override fun onExecuteWrite(device: BluetoothDevice, requestId: Int, execute: Boolean) {
+                    if (execute) {
+                        // Assemble all buffered chunks and fire the event
+                        val buffer = preparedWriteBuffers.remove(device.address)
+                        if (buffer != null && buffer.size() > 0) {
+                            val payload = String(buffer.toByteArray(), Charsets.UTF_8)
+                            Log.d(TAG, "GATT Server assembled long-write message (${buffer.size()} bytes): $payload")
+                            this@BleAdvertiserModule.sendEvent("onMessageReceived", mapOf("payload" to payload))
+                        }
+                    } else {
+                        // Cancel — discard buffered data
+                        preparedWriteBuffers.remove(device.address)
+                        Log.d(TAG, "GATT Server: long write cancelled by ${device.address}")
+                    }
+                    // Always respond to the EXECUTE_WRITE_REQUEST
+                    gattServer?.sendResponse(device, requestId, BluetoothGatt.GATT_SUCCESS, 0, null)
                 }
             }
 
