@@ -27,8 +27,12 @@ export const useMeshQueue = create<MeshQueueState>((set, get) => ({
   isLoaded: false,
 
   loadQueue: async () => {
-    const stored = await StorageService.get<Message[]>(MESH_QUEUE_KEY) ?? [];
+    let stored = await StorageService.get<Message[]>(MESH_QUEUE_KEY) ?? [];
+    // Purge any key_exchange packets from disk (they are generated freshly on discovery)
+    // This clears out the massive backlog created by the earlier spam bug.
+    stored = stored.filter(m => m.type !== 'key_exchange');
     set({ queue: stored, isLoaded: true });
+    await StorageService.set(MESH_QUEUE_KEY, stored);
   },
 
   enqueue: async (message: Message) => {

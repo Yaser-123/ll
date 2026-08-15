@@ -511,10 +511,10 @@ export class BleTransport implements ITransport {
 
     this.activePeers.set(shortId, peer);
 
-    // Only call onPeerDiscovered on first appearance or when coming back online
-    this.events?.onPeerDiscovered(peer);
-
     if (!wasAlreadyOnline) {
+      // Only call onPeerDiscovered on first appearance or when coming back online
+      this.events?.onPeerDiscovered(peer);
+      
       console.log(
         `[BleTransport] Peer discovered: ${displayName} (${shortId}) RSSI=${device.rssi}`
       );
