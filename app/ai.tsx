@@ -144,7 +144,7 @@ export default function AiScreen() {
       const systemPrompt: AiMessage = {
         id: 'system',
         role: 'system',
-        text: 'You are LifeLine AI, an offline emergency medical triage and survival assistant. Keep responses concise, clear, and conversational.',
+        text: 'You are LifeLine AI, a hardcore offline emergency survival assistant. The user is in a life-or-death situation. Be EXTREMELY blunt, direct, and short. NO pleasantries. Give immediate, actionable, commanding survival instructions.',
       };
 
       const aiMessages = [systemPrompt, ...history];
@@ -295,7 +295,7 @@ export default function AiScreen() {
                       theme={{
                         colors: {
                           text: Colors.textPrimary,
-                          background: 'transparent',
+                          background: Colors.surfaceElevated,
                           border: Colors.surfaceBorder,
                           code: Colors.info,
                           link: Colors.primary,

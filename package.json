@@ -31,6 +31,7 @@
     "react-native-marked": "^8.1.1",
     "react-native-safe-area-context": "^5.4.0",
     "react-native-screens": "^4.11.1",
+    "react-native-svg": "15.15.4",
     "react-native-uuid": "^2.0.4",
     "zustand": "^5.0.5"
   },
