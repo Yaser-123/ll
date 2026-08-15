@@ -14,7 +14,6 @@ import { Vibration } from 'react-native';
 
 import { Colors, Typography } from '../src/theme';
 import { useDeviceStore } from '../src/store/useDeviceStore';
-import { Audio } from 'expo-av';
 
 import { usePeerStore } from '../src/store/usePeerStore';
 import { useMessageStore } from '../src/store/useMessageStore';
@@ -98,16 +97,6 @@ export default function RootLayout() {
                 
                 if (isNew && sosEvent.originatorId !== selfId) {
                   Vibration.vibrate([0, 1000, 500, 1000, 500, 1000]); // 3 seconds
-                  
-                  // Play audio alarm
-                  try {
-                    const { sound } = await Audio.Sound.createAsync(
-                      require('../assets/alarm.mp3')
-                    );
-                    await sound.playAsync();
-                  } catch (e) {
-                    console.error('[Mesh] Failed to play SOS audio alarm', e);
-                  }
                 }
                 
                 await sosStore.addEvent(sosEvent);
