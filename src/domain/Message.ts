@@ -37,6 +37,7 @@ export interface Message {
 }
 
 export function makeConversationId(idA: string, idB: string): string {
+  if (idA === 'broadcast' || idB === 'broadcast') return 'broadcast';
   return [idA, idB].sort().join('::');
 }
 

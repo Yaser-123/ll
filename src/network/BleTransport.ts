@@ -292,13 +292,22 @@ export class BleTransport implements ITransport {
   async sendMessage(message: Message): Promise<void> {
     const targetId = message.recipientId;
     
-    // Broadcast is not supported in Module 3 (GATT requires direct connection)
+    // Broadcast via GATT requires sending to all known peers individually
     if (targetId === 'broadcast') {
-      console.warn('[BleTransport] Broadcast sending not yet supported via GATT.');
+      console.log(`[BleTransport] Broadcasting message ${message.id} to ${this.activePeers.size} peers.`);
+      for (const peerId of this.activePeers.keys()) {
+        const currentQueue = this.outbox.get(peerId) ?? [];
+        currentQueue.push(message);
+        this.outbox.set(peerId, currentQueue);
+        
+        if (this.activePeers.get(peerId)?.status === 'online') {
+          this.flushOutbox(peerId);
+        }
+      }
       return;
     }
 
-    // Queue the message
+    // Direct message queueing
     const currentQueue = this.outbox.get(targetId) ?? [];
     currentQueue.push(message);
     this.outbox.set(targetId, currentQueue);
@@ -579,6 +588,7 @@ export class BleTransport implements ITransport {
           type: 'chat',
           messageId: msg.id,
           senderId: this.selfShortId,
+          recipientId: msg.recipientId,
           timestamp: msg.createdAt,
           payload: msg.text,
         });
@@ -643,12 +653,13 @@ export class BleTransport implements ITransport {
       const rawSenderId: string = parsed.senderId ?? '';
       const senderShortId = rawSenderId.replace(/-/g, '').slice(0, 12).toUpperCase();
       
-      const conversationId = makeConversationId(senderShortId, this.selfShortId);
+      const recipientId = parsed.recipientId ?? 'broadcast';
+      const conversationId = makeConversationId(senderShortId, recipientId === 'broadcast' ? 'broadcast' : this.selfShortId);
 
       const msg: Message = {
         id: parsed.messageId,
         senderId: senderShortId,
-        recipientId: this.selfShortId,
+        recipientId,
         conversationId,
         type: 'text',
         text: parsed.payload,
