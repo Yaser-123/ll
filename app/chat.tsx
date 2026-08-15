@@ -74,10 +74,10 @@ export default function ChatScreen() {
         <Text style={styles.peerHeaderText}><Text style={{fontWeight: 'bold'}}>{peerName}</Text></Text>
       </View>
 
-      <KeyboardAvoidingView
+      <KeyboardAvoidingView 
         style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={90}
+        behavior="padding"
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 90}
       >
         {conversation.length === 0 ? (
           <View style={styles.empty}>

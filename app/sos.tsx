@@ -15,6 +15,8 @@ import {
   Modal,
   StyleSheet,
   Alert,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Location from 'expo-location';
@@ -155,7 +157,10 @@ export default function SosScreen() {
         animationType="slide"
         onRequestClose={() => setModalVisible(false)}
       >
-        <View style={styles.modalOverlay}>
+        <KeyboardAvoidingView 
+          style={styles.modalOverlay}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'padding'}
+        >
           <View style={styles.modalCard}>
             <Text style={styles.modalTitle}>⚠ CONFIRM SOS ALERT</Text>
             <Text style={styles.modalSub}>
@@ -204,7 +209,7 @@ export default function SosScreen() {
               </TouchableOpacity>
             </View>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
     </SafeAreaView>
   );
