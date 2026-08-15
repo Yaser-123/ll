@@ -152,16 +152,15 @@ export default function AiScreen() {
       let fullResponse = '';
       await aiService.generateResponse(aiMessages, async (token) => {
         fullResponse += token;
-        // Throttle state updates if necessary, but Zustand handles fast updates reasonably well
-        await updateMessage(convId!, assistantMsgId, (msg) => ({ ...msg, text: fullResponse }));
+        // Update UI without hitting AsyncStorage on every single character
+        await updateMessage(convId!, assistantMsgId, (msg) => ({ ...msg, text: fullResponse }), false);
       });
       
-      if (!fullResponse) {
-        await updateMessage(convId!, assistantMsgId, (msg) => ({ ...msg, text: "I'm sorry, I encountered an error." }));
-      }
+      // Generation finished, persist once to disk
+      await updateMessage(convId!, assistantMsgId, (msg) => ({ ...msg, text: fullResponse || "I'm sorry, I encountered an error." }), true);
     } catch (error) {
       console.error(error);
-      await updateMessage(convId!, assistantMsgId, (msg) => ({ ...msg, text: "Error generating response." }));
+      await updateMessage(convId!, assistantMsgId, (msg) => ({ ...msg, text: "Error generating response." }), true);
     } finally {
       setIsGenerating(false);
     }

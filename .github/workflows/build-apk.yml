@@ -49,6 +49,16 @@ jobs:
           restore-keys: |
             gradle-
 
+      - name: Cache C++ NDK Output
+        uses: actions/cache@v4
+        with:
+          path: |
+            android/app/.cxx
+            node_modules/llama.rn/android/.cxx
+          key: cxx-${{ hashFiles('package-lock.json', 'android/app/build.gradle') }}
+          restore-keys: |
+            cxx-
+
       - name: Build Android Debug APK
         run: |
           cd android
