@@ -54,25 +54,17 @@ export default function SosScreen() {
   async function handleConfirmSos() {
     if (!deviceId) return;
 
-    // Fast-fail location fetch (wait max 3s so we don't delay transmission)
+    // Pull instant background GPS location from store instead of waiting
+    const myLoc = useLocationStore.getState().getSelfLocation(deviceId);
     let locationData;
-    try {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status === 'granted') {
-        const loc = await Promise.race([
-          Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }),
-          new Promise<null>((resolve) => setTimeout(() => resolve(null), 3000))
-        ]);
-        if (loc) {
-          locationData = {
-            latitude: loc.coords.latitude,
-            longitude: loc.coords.longitude,
-            accuracy: loc.coords.accuracy ?? undefined
-          };
-        }
-      }
-    } catch (e) {
-      console.warn('Failed to fetch location for SOS', e);
+    if (myLoc) {
+      locationData = {
+        latitude: myLoc.latitude,
+        longitude: myLoc.longitude,
+        accuracy: undefined
+      };
+    } else {
+      console.warn('No location available in store for SOS');
     }
 
     const event = createSosEvent(deviceId, displayName, selectedSeverity, description.trim() || undefined);

@@ -91,6 +91,7 @@ export default function RootLayout() {
                 const sosEvent = JSON.parse(message.text ?? '{}');
                 // The sosEvent hopCount will be tracking the hops, we can sync it with message
                 sosEvent.hopCount = message.hopCount;
+                sosEvent.isLocal = false; // It came from mesh, so it's not local
                 
                 // Play alarm only if it's new
                 const sosStore = useSosStore.getState();
