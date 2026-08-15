@@ -12,7 +12,7 @@ import {
   Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 
 import { Colors, Typography, Spacing, Radius, Shadow } from '../src/theme';
 import { useAiStore } from '../src/store/useAiStore';
