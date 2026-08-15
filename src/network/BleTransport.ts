@@ -527,17 +527,12 @@ export class BleTransport implements ITransport {
 
     if (!this.bleManager) return;
 
-    // ── Connection Arbitration ──────────────────────────────────────────────
-    const selfNorm = this.selfShortId.toUpperCase();
-    const peerNorm = shortId.toUpperCase();
-    if (selfNorm < peerNorm) {
-      console.log(`[BleTransport] Deferring to ${shortId} (peer has higher priority).`);
-      return;
-    }
-
     // ── Concurrency Lock ───────────────────────────────────────────────────
+    // Only one outbound connection at a time on this device. If we are already
+    // in the middle of connecting to someone else, defer — we'll retry on the
+    // next scan advertisement (allowDuplicates means this is every few seconds).
     if (this.isConnecting) {
-      console.log(`[BleTransport] Already connecting, deferring flush for ${shortId}.`);
+      console.log(`[BleTransport] Already connecting, will retry ${shortId} on next scan.`);
       return;
     }
     this.isConnecting = true;
@@ -604,12 +599,23 @@ export class BleTransport implements ITransport {
       await connectedDevice.cancelConnection();
       console.log(`[BleTransport] Outbox flushed, disconnected from ${shortId}`);
 
-    } catch (err) {
-      console.error(`[BleTransport] Failed to flush outbox for ${shortId}:`, err);
-      // Wait to disconnect on error just in case
-      try {
-        await this.bleManager.cancelDeviceConnection(macAddress);
-      } catch (e) {}
+    } catch (err: any) {
+      const errMsg: string = err?.message ?? String(err);
+      console.error(`[BleTransport] Failed to flush outbox for ${shortId}:`, errMsg);
+
+      // If two phones tried to connect simultaneously (race), back off with
+      // random jitter so they don't collide again on the next retry.
+      const isCollision = errMsg.includes('already connected') ||
+                          errMsg.includes('disconnected') ||
+                          errMsg.includes('cancelled');
+      if (isCollision) {
+        const jitter = 500 + Math.random() * 2000; // 0.5–2.5 s random delay
+        console.log(`[BleTransport] Collision detected — backing off ${Math.round(jitter)}ms before retry.`);
+        await new Promise(resolve => setTimeout(resolve, jitter));
+      }
+
+      // Clean up any half-open connection
+      try { await device.cancelConnection(); } catch (e) {}
     } finally {
       this.isConnecting = false;
       // Resume scanning
