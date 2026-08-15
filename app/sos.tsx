@@ -18,10 +18,14 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Location from 'expo-location';
+import { router } from 'expo-router';
+import * as turf from '@turf/distance';
+import { point } from '@turf/helpers';
 
 import { Colors, Typography, Spacing, Radius, Shadow } from '../src/theme';
 import { useDeviceStore } from '../src/store/useDeviceStore';
 import { useSosStore } from '../src/store/useSosStore';
+import { useLocationStore } from '../src/store/useLocationStore';
 import { SosButton } from '../src/components/SosButton';
 import { NetworkStatusBar } from '../src/components/NetworkStatusBar';
 import { createSosEvent, type SosSeverity, type SosEvent } from '../src/domain/SosEvent';
@@ -223,6 +227,16 @@ function SosEventCard({
 }) {
   const cfg = SEVERITY_CONFIG[event.severity];
   const isActive = event.status === 'active';
+  
+  const deviceId = useDeviceStore((s) => s.deviceId);
+  const myLoc = useLocationStore((s) => s.getSelfLocation(deviceId));
+  let distanceStr = '';
+  if (myLoc && event.location && !event.isLocal) {
+    const from = point([myLoc.longitude, myLoc.latitude]);
+    const to = point([event.location.longitude, event.location.latitude]);
+    const dist = turf.default(from, to, { units: 'kilometers' });
+    distanceStr = dist < 1 ? `${Math.round(dist * 1000)} m away` : `${dist.toFixed(1)} km away`;
+  }
 
   return (
     <View style={[styles.eventCard, isActive && { borderColor: cfg.color }]}>
@@ -241,21 +255,36 @@ function SosEventCard({
         <Text style={styles.eventDesc}>{event.description}</Text>
       ) : null}
       {event.location ? (
-        <Text style={styles.eventLocation}>
-          📍 {event.location.latitude.toFixed(5)}, {event.location.longitude.toFixed(5)}
-        </Text>
+        <View style={styles.locationRow}>
+          <Text style={styles.eventLocation}>
+            📍 {event.location.latitude.toFixed(5)}, {event.location.longitude.toFixed(5)}
+          </Text>
+          {!!distanceStr && <Text style={styles.distanceText}> • {distanceStr}</Text>}
+        </View>
       ) : null}
       <Text style={styles.eventTime}>
         {new Date(event.createdAt).toLocaleString()}
       </Text>
-      {isActive && onResolve && event.isLocal && (
-        <TouchableOpacity
-          style={styles.resolveBtn}
-          onPress={() => onResolve(event)}
-        >
-          <Text style={styles.resolveBtnText}>MARK RESOLVED</Text>
-        </TouchableOpacity>
-      )}
+      
+      <View style={styles.actionRow}>
+        {event.location && (
+          <TouchableOpacity
+            style={styles.mapBtn}
+            onPress={() => router.push(`/map?lat=${event.location!.latitude}&lng=${event.location!.longitude}&sosId=${event.id}`)}
+          >
+            <Text style={styles.mapBtnText}>VIEW ON MAP</Text>
+          </TouchableOpacity>
+        )}
+        
+        {isActive && onResolve && event.isLocal && (
+          <TouchableOpacity
+            style={styles.resolveBtn}
+            onPress={() => onResolve(event)}
+          >
+            <Text style={styles.resolveBtnText}>MARK RESOLVED</Text>
+          </TouchableOpacity>
+        )}
+      </View>
     </View>
   );
 }
@@ -391,28 +420,55 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.sm,
   },
   eventLocation: {
-    fontSize: Typography.size.xs,
+    fontSize: Typography.size.sm,
+    color: Colors.textSecondary,
+    marginBottom: Spacing.xs,
+  },
+  locationRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    marginBottom: Spacing.xs,
+  },
+  distanceText: {
+    fontSize: Typography.size.sm,
     color: Colors.primary,
-    fontWeight: Typography.weight.semibold,
-    marginBottom: Spacing.sm,
+    fontWeight: Typography.weight.bold,
   },
   eventTime: {
     fontSize: Typography.size.xs,
     color: Colors.textTertiary,
   },
-  resolveBtn: {
+  actionRow: {
+    flexDirection: 'row',
     marginTop: Spacing.md,
+    gap: Spacing.md,
+  },
+  resolveBtn: {
+    flex: 1,
     paddingVertical: Spacing.sm,
-    borderRadius: Radius.md,
-    borderWidth: 1,
-    borderColor: Colors.online,
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    borderRadius: Radius.sm,
     alignItems: 'center',
   },
   resolveBtnText: {
-    fontSize: Typography.size.xs,
+    color: Colors.textPrimary,
+    fontSize: Typography.size.sm,
     fontWeight: Typography.weight.bold,
-    color: Colors.online,
-    letterSpacing: 2,
+  },
+  mapBtn: {
+    flex: 1,
+    paddingVertical: Spacing.sm,
+    backgroundColor: 'rgba(0,150,255,0.15)',
+    borderRadius: Radius.sm,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(0,150,255,0.3)',
+  },
+  mapBtnText: {
+    color: '#0096FF',
+    fontSize: Typography.size.sm,
+    fontWeight: Typography.weight.bold,
   },
 
   // Modal

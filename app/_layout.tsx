@@ -14,7 +14,6 @@ import { Vibration } from 'react-native';
 
 import { Colors, Typography } from '../src/theme';
 import { useDeviceStore } from '../src/store/useDeviceStore';
-import { Ionicons } from '@expo/vector-icons';
 import { Audio } from 'expo-av';
 
 import { usePeerStore } from '../src/store/usePeerStore';

@@ -62,7 +62,8 @@
         {
           "locationAlwaysAndWhenInUsePermission": "Allow LifeLine to use your location for emergency broadcasts."
         }
-      ]
+      ],
+      "@maplibre/maplibre-react-native"
     ],
     "experiments": {
       "typedRoutes": true

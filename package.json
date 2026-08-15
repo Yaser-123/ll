@@ -3,7 +3,10 @@
   "version": "1.0.0",
   "main": "expo-router/entry",
   "dependencies": {
+    "@maplibre/maplibre-react-native": "^11.3.6",
     "@react-native-async-storage/async-storage": "^2.1.2",
+    "@turf/distance": "^7.4.0",
+    "@turf/helpers": "^7.4.0",
     "@types/base-64": "^1.0.2",
     "base-64": "^1.0.0",
     "buffer": "^6.0.3",
