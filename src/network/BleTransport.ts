@@ -49,6 +49,7 @@ import { requestBlePermissions } from '../services/PermissionService';
 import type { ITransport, TransportEvents, TransportState } from './ITransport';
 import type { Peer } from '../domain/Peer';
 import type { Message } from '../domain/Message';
+import { makeConversationId } from '../domain/Message';
 import type { Location } from '../domain/Location';
 import type { SosEvent } from '../domain/SosEvent';
 
@@ -571,11 +572,13 @@ export class BleTransport implements ITransport {
         const msg = queue[0];
         
         // Format for offline packet: Plaintext JSON (E2EE omitted per Module 3 guidelines)
+        // Use selfShortId (not the full UUID) so the receiver can match it directly
+        // against the peer store keys without UUID-to-shortId conversion.
         const packet = JSON.stringify({
           protocol: 'lifeline/1.0',
           type: 'chat',
           messageId: msg.id,
-          senderId: msg.senderId,
+          senderId: this.selfShortId,
           timestamp: msg.createdAt,
           payload: msg.text,
         });
@@ -635,11 +638,16 @@ export class BleTransport implements ITransport {
         return;
       }
 
+      // senderId is already the peer's shortId (12-char uppercase hex).
+      // makeConversationId sorts both IDs so the bucket is identical on both devices.
+      const senderShortId: string = (parsed.senderId as string).toUpperCase();
+      const conversationId = makeConversationId(senderShortId, this.selfShortId);
+
       const msg: Message = {
         id: parsed.messageId,
-        senderId: parsed.senderId,
-        recipientId: 'global',
-        conversationId: 'global',
+        senderId: senderShortId,
+        recipientId: this.selfShortId,
+        conversationId,
         type: 'text',
         text: parsed.payload,
         status: 'delivered',
@@ -648,13 +656,14 @@ export class BleTransport implements ITransport {
         updatedAt: new Date().toISOString(),
       };
 
-      console.log(`[BleTransport] Received message ${msg.id} from ${msg.senderId}`);
+      console.log(`[BleTransport] Received message ${msg.id} from ${senderShortId} → conv:${conversationId}`);
       this.events?.onMessageReceived(msg);
 
     } catch (e) {
       console.error('[BleTransport] Failed to parse incoming message:', e);
     }
   }
+
 
   /** Tear down all BLE resources without touching transport state. */
   private async cleanup(): Promise<void> {
