@@ -244,6 +244,25 @@ export class BleTransport implements ITransport {
     try {
       // 3. Create BleManager and wait for Bluetooth to be powered on
       this.bleManager = new BleManager();
+      
+      this.bleStateSubscription = this.bleManager.onStateChange(async (state) => {
+        if (state === State.PoweredOn && this._state === 'scanning') {
+          console.log('[BleTransport] Bluetooth powered ON. Resuming mesh...');
+          const localName = buildLocalName(this.selfDeviceId, this.selfDisplayName);
+          await BleAdvertiser.startAdvertising(LIFELINE_SERVICE_UUID, localName).catch(console.warn);
+          this.startScanSession();
+        } else if (state === State.PoweredOff) {
+          console.log('[BleTransport] Bluetooth powered OFF. Halting mesh...');
+          this.stopScanSession();
+          await BleAdvertiser.stopAdvertising().catch(console.warn);
+          for (const [shortId] of this.activePeers) {
+            this.events?.onPeerLost(shortId);
+          }
+          this.activePeers.clear();
+          this.peerLastSeen.clear();
+        }
+      }, true);
+
       await this.waitForBlePoweredOn();
 
       // 4. Start advertising (so other devices can discover us)
