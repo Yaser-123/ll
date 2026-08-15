@@ -120,10 +120,10 @@ export default function MapScreen() {
         const destLng = parseFloat(params.lng);
 
         // Auto-center on SOS location
-        cameraRef.current?.setCamera({
-          centerCoordinate: [destLng, destLat],
-          zoomLevel: 15,
-          animationDuration: 1000,
+        cameraRef.current?.flyTo({
+          center: [destLng, destLat],
+          zoom: 15,
+          duration: 1000,
         });
 
         // Calculate Route
@@ -155,10 +155,10 @@ export default function MapScreen() {
         }
       } else if (myLoc) {
         // Default center on user
-        cameraRef.current?.setCamera({
-          centerCoordinate: [myLoc.longitude, myLoc.latitude],
-          zoomLevel: 13,
-          animationDuration: 1000,
+        cameraRef.current?.flyTo({
+          center: [myLoc.longitude, myLoc.latitude],
+          zoom: 13,
+          duration: 1000,
         });
       }
     }
@@ -208,10 +208,10 @@ export default function MapScreen() {
       setSelectionGeoJSON(polygon);
 
       // Auto-center map on selected region
-      cameraRef.current?.setCamera({
-        centerCoordinate: [Number(item.lon), Number(item.lat)],
-        zoomLevel: 10,
-        animationDuration: 1000,
+      cameraRef.current?.flyTo({
+        center: [Number(item.lon), Number(item.lat)],
+        zoom: 10,
+        duration: 1000,
       });
     }
   };
