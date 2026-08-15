@@ -638,9 +638,11 @@ export class BleTransport implements ITransport {
         return;
       }
 
-      // senderId is already the peer's shortId (12-char uppercase hex).
-      // makeConversationId sorts both IDs so the bucket is identical on both devices.
-      const senderShortId: string = (parsed.senderId as string).toUpperCase();
+      // Robustly handle senderId: it might be a full UUID (from an older client session)
+      // or a shortId (from a newer client). We always normalize it to a shortId.
+      const rawSenderId: string = parsed.senderId ?? '';
+      const senderShortId = rawSenderId.replace(/-/g, '').slice(0, 12).toUpperCase();
+      
       const conversationId = makeConversationId(senderShortId, this.selfShortId);
 
       const msg: Message = {
