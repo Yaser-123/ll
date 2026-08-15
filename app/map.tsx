@@ -95,7 +95,7 @@ export default function MapScreen() {
         },
         (pack: any, status: any) => {
           if (status.percentage) setProgress(status.percentage);
-          if (status.state === 2) { // 2 = Complete
+          if (status.state === 'complete') {
             setDownloading(false);
             setDownloadModalVisible(false);
             alert('Region downloaded successfully!');
