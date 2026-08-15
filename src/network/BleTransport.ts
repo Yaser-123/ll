@@ -632,6 +632,8 @@ export class BleTransport implements ITransport {
           payload: parsedPayload,
           hopCount: msg.hopCount,
           maxHops: msg.maxHops,
+          encrypted: msg.encrypted,
+          signature: msg.signature,
         });
 
         const CHUNK_SIZE = 300; // Safe payload size to fit inside 512-byte MTU limits
@@ -741,7 +743,7 @@ export class BleTransport implements ITransport {
         return;
       }
       
-      const allowedTypes = ['text', 'sos_relay', 'sos_cancel', 'location_beacon', 'system'];
+      const allowedTypes = ['text', 'sos_relay', 'sos_cancel', 'location_beacon', 'system', 'key_exchange'];
       if (!allowedTypes.includes(parsed.type)) {
         console.warn(`[BleTransport] Received unsupported packet type '${parsed.type}':`, rawPayload);
         return;
@@ -765,6 +767,8 @@ export class BleTransport implements ITransport {
         status: 'delivered',
         hopCount: typeof parsed.hopCount === 'number' ? parsed.hopCount : 0,
         maxHops: typeof parsed.maxHops === 'number' ? parsed.maxHops : 5,
+        encrypted: parsed.encrypted,
+        signature: parsed.signature,
         createdAt: parsed.timestamp || new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };
