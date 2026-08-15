@@ -88,7 +88,9 @@ export default function RootLayout() {
 
           // 3. Store-and-Forward Relaying
           const isFromUs = message.senderId === selfId;
-          if (!isFromUs && message.hopCount < message.maxHops) {
+          const isDestinedForUs = message.recipientId === selfId;
+          
+          if (!isFromUs && !isDestinedForUs && message.hopCount < message.maxHops) {
             console.log(`[Mesh] Relaying message ${message.id} (Hop ${message.hopCount + 1}/${message.maxHops})`);
             const relayedMsg = { ...message, hopCount: message.hopCount + 1 };
             
@@ -97,9 +99,14 @@ export default function RootLayout() {
             
             // Immediately broadcast to currently active peers
             transportManager.sendMessage(relayedMsg);
-          } else if (!isFromUs) {
+          } else if (!isFromUs && !isDestinedForUs) {
             console.log(`[Mesh] Dropping message ${message.id} (Max hops reached)`);
           }
+        },
+        onMessageDelivered: (messageId) => {
+          const msgStore = useMessageStore.getState();
+          // Update status in UI
+          msgStore.updateMessageStatus(messageId, 'sent');
         },
         onSosReceived: (sos) => {
           useSosStore.getState().addEvent(sos);
