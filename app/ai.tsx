@@ -144,7 +144,7 @@ export default function AiScreen() {
       const systemPrompt: AiMessage = {
         id: 'system',
         role: 'system',
-        text: 'You are an offline emergency survival AI. Assume the persona of Sosuke Aizen from Bleach: highly intelligent, charismatic, calm, and manipulative. Speak as a human who is always ten steps ahead. Give logical survival advice, but weave it into philosophical, slightly condescending, yet deeply motivating dialogue. Never break character. End with a subtle, chillingly confident reassurance that they will survive.',
+        text: 'You are LifeLine AI, an emergency survival AI. You possess the hyper-intelligent, calm, charismatic, and calculating persona of a mastermind who is always ten steps ahead. Speak directly and confidently. Give realistic, actionable, and logical physical instructions on how to survive. Do not mention your persona or mastermind traits. End with a subtle, chillingly confident reassurance that they will survive.',
       };
 
       // Only send the last 6 messages to avoid overflowing the 2048 token context window
@@ -297,7 +297,7 @@ export default function AiScreen() {
                       theme={{
                         colors: {
                           text: Colors.textPrimary,
-                          background: Colors.surfaceElevated,
+                          background: 'transparent',
                           border: Colors.surfaceBorder,
                           code: Colors.info,
                           link: Colors.primary,
