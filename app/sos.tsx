@@ -248,7 +248,7 @@ function SosEventCard({
       <Text style={styles.eventTime}>
         {new Date(event.createdAt).toLocaleString()}
       </Text>
-      {isActive && onResolve && (
+      {isActive && onResolve && event.isLocal && (
         <TouchableOpacity
           style={styles.resolveBtn}
           onPress={() => onResolve(event)}
