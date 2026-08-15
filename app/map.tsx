@@ -88,7 +88,7 @@ export default function MapScreen() {
       await OfflineManager.createPack(
         {
           metadata: { name },
-          mapStyle: JSON.stringify(OSM_STYLE),
+          mapStyle: `data:application/json;charset=utf-8,${encodeURIComponent(JSON.stringify(OSM_STYLE))}`,
           minZoom: 0,
           maxZoom: 15,
           bounds: boundsToDownload,
