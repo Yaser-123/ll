@@ -38,6 +38,9 @@ export interface SosEvent {
   /** ISO timestamp when the SOS auto-expires (null = never) */
   expiresAt?: string;
 
+  /** ISO timestamp when the SOS was resolved */
+  resolvedAt?: string;
+
   /** Number of hops across the mesh (0 = local origin) */
   hopCount: number;
 
@@ -65,6 +68,7 @@ export function createSosEvent(
     createdAt: now,
     updatedAt: now,
     expiresAt,
+    resolvedAt: undefined,
     hopCount: 0,
     isLocal: true,
   };

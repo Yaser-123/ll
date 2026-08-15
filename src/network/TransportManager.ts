@@ -79,11 +79,41 @@ class TransportManager {
     );
   }
 
-  /** Broadcast SOS to all peers via all transports */
+  /** Broadcast SOS to all peers via all transports by wrapping it in the mesh Message protocol */
   async broadcastSos(sos: SosEvent): Promise<void> {
-    await Promise.allSettled(
-      this.transports.map((t) => t.broadcastSos(sos))
-    );
+    const message: Message = {
+      id: sos.id, // Bind Message ID to SOS ID for perfect mesh deduplication
+      senderId: sos.originatorId,
+      recipientId: 'broadcast',
+      conversationId: 'broadcast',
+      type: 'sos_relay',
+      text: JSON.stringify(sos),
+      status: 'pending',
+      hopCount: sos.hopCount,
+      maxHops: 5, // High priority mesh flood
+      createdAt: sos.createdAt,
+      updatedAt: sos.updatedAt,
+    };
+    await this.sendMessage(message);
+  }
+
+  /** Broadcast SOS cancellation to all peers */
+  async broadcastSosCancel(sosId: string, senderId: string): Promise<void> {
+    const now = new Date().toISOString();
+    const message: Message = {
+      id: `${sosId}-cancel`, 
+      senderId: senderId,
+      recipientId: 'broadcast',
+      conversationId: 'broadcast',
+      type: 'sos_cancel',
+      text: JSON.stringify({ sosId }),
+      status: 'pending',
+      hopCount: 0,
+      maxHops: 5,
+      createdAt: now,
+      updatedAt: now,
+    };
+    await this.sendMessage(message);
   }
 
   /** Aggregate connection status across all transports */

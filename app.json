@@ -56,7 +56,13 @@
           "bluetoothAlwaysPermission": "Allow LIFELINE to use Bluetooth to discover nearby emergency devices."
         }
       ],
-      "expo-asset"
+      "expo-asset",
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Allow LifeLine to use your location for emergency broadcasts."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true

@@ -17,6 +17,7 @@ import {
   Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import * as Location from 'expo-location';
 
 import { Colors, Typography, Spacing, Radius, Shadow } from '../src/theme';
 import { useDeviceStore } from '../src/store/useDeviceStore';
@@ -49,21 +50,39 @@ export default function SosScreen() {
   async function handleConfirmSos() {
     if (!deviceId) return;
 
+    // Fast-fail location fetch (wait max 3s so we don't delay transmission)
+    let locationData;
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status === 'granted') {
+        const loc = await Promise.race([
+          Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }),
+          new Promise<null>((resolve) => setTimeout(() => resolve(null), 3000))
+        ]);
+        if (loc) {
+          locationData = {
+            latitude: loc.coords.latitude,
+            longitude: loc.coords.longitude,
+            accuracy: loc.coords.accuracy ?? undefined
+          };
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to fetch location for SOS', e);
+    }
+
     const event = createSosEvent(deviceId, displayName, selectedSeverity, description.trim() || undefined);
+    if (locationData) {
+      event.location = locationData;
+    }
+    
     await addEvent(event);
 
-    // Attempt broadcast — MockTransport logs but doesn't transmit
     await transportManager.broadcastSos(event);
 
     setModalVisible(false);
     setDescription('');
     setSelectedSeverity('high');
-
-    Alert.alert(
-      'SOS Created',
-      'Your SOS alert has been stored locally.\n\n⚠️ Mesh broadcast is not active yet — it requires a real transport module to reach other devices.',
-      [{ text: 'OK' }]
-    );
   }
 
   async function handleResolve(event: SosEvent) {
@@ -75,7 +94,12 @@ export default function SosScreen() {
         {
           text: 'Resolve',
           style: 'destructive',
-          onPress: () => updateStatus(event.id, 'resolved'),
+          onPress: async () => {
+            await updateStatus(event.id, 'resolved');
+            if (deviceId) {
+              await transportManager.broadcastSosCancel(event.id, deviceId);
+            }
+          },
         },
       ]
     );
@@ -94,12 +118,11 @@ export default function SosScreen() {
           <Text style={styles.holdHint}>Hold 1.5 seconds to trigger emergency alert</Text>
         </View>
 
-        {/* Stub notice */}
+        {/* Mesh Status */}
         <View style={styles.stubCard}>
-          <Text style={styles.stubTitle}>TRANSMISSION STATUS</Text>
+          <Text style={styles.stubTitle}>MESH STATUS</Text>
           <Text style={styles.stubText}>
-            SOS alerts are saved locally on this device.{'\n'}
-            Mesh broadcast will activate when a Bluetooth or Wi-Fi transport module is connected.
+            Your SOS will be immediately broadcast to all reachable peers via Bluetooth. If no peers are nearby, it will be securely held in the store-and-forward queue and automatically transmitted the moment a peer is discovered.
           </Text>
         </View>
 
@@ -216,6 +239,11 @@ function SosEventCard({
       </Text>
       {event.description ? (
         <Text style={styles.eventDesc}>{event.description}</Text>
+      ) : null}
+      {event.location ? (
+        <Text style={styles.eventLocation}>
+          📍 {event.location.latitude.toFixed(5)}, {event.location.longitude.toFixed(5)}
+        </Text>
       ) : null}
       <Text style={styles.eventTime}>
         {new Date(event.createdAt).toLocaleString()}
@@ -359,7 +387,13 @@ const styles = StyleSheet.create({
   },
   eventDesc: {
     fontSize: Typography.size.sm,
-    color: Colors.textPrimary,
+    color: Colors.textSecondary,
+    marginBottom: Spacing.sm,
+  },
+  eventLocation: {
+    fontSize: Typography.size.xs,
+    color: Colors.primary,
+    fontWeight: Typography.weight.semibold,
     marginBottom: Spacing.sm,
   },
   eventTime: {

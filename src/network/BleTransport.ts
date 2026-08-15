@@ -614,7 +614,7 @@ export class BleTransport implements ITransport {
         // against the peer store keys without UUID-to-shortId conversion.
         const packet = JSON.stringify({
           protocol: 'lifeline/1.0',
-          type: 'chat',
+          type: msg.type,
           messageId: msg.id,
           senderId: this.selfShortId, // Original sender or relay node (we'll keep it simple for now, recipient verifies ID)
           recipientId: msg.recipientId,
@@ -679,8 +679,14 @@ export class BleTransport implements ITransport {
   private handleIncomingMessage(rawPayload: string): void {
     try {
       const parsed = JSON.parse(rawPayload);
-      if (parsed.protocol !== 'lifeline/1.0' || parsed.type !== 'chat') {
-        console.warn('[BleTransport] Received unknown packet type:', rawPayload);
+      if (parsed.protocol !== 'lifeline/1.0') {
+        console.warn('[BleTransport] Received unknown protocol packet:', rawPayload);
+        return;
+      }
+      
+      const allowedTypes = ['text', 'sos_relay', 'sos_cancel', 'location_beacon', 'system'];
+      if (!allowedTypes.includes(parsed.type)) {
+        console.warn(`[BleTransport] Received unsupported packet type '${parsed.type}':`, rawPayload);
         return;
       }
 
@@ -697,7 +703,7 @@ export class BleTransport implements ITransport {
         senderId: senderShortId,
         recipientId,
         conversationId,
-        type: 'text',
+        type: parsed.type,
         text: parsed.payload,
         status: 'delivered',
         hopCount: typeof parsed.hopCount === 'number' ? parsed.hopCount : 0,

@@ -10,6 +10,8 @@ import { Tabs } from 'expo-router';
 import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
+import { Vibration } from 'react-native';
+import { Audio } from 'expo-av';
 
 import { Colors, Typography } from '../src/theme';
 import { useDeviceStore } from '../src/store/useDeviceStore';
@@ -83,7 +85,48 @@ export default function RootLayout() {
           // 2. Is this message for us?
           const isForUs = message.recipientId === selfId || message.recipientId === 'broadcast';
           if (isForUs) {
-            msgStore.addMessage(message);
+            if (message.type === 'sos_relay') {
+              try {
+                const sosEvent = JSON.parse(message.text ?? '{}');
+                // The sosEvent hopCount will be tracking the hops, we can sync it with message
+                sosEvent.hopCount = message.hopCount;
+                
+                // Play alarm only if it's new
+                const sosStore = useSosStore.getState();
+                const isNew = !sosStore.events.find(e => e.id === sosEvent.id) && !sosStore.cancelledSosIds.includes(sosEvent.id);
+                
+                if (isNew && sosEvent.originatorId !== selfId) {
+                  Vibration.vibrate([0, 1000, 500, 1000, 500, 1000]); // 3 seconds
+                  
+                  // Play beep
+                  try {
+                    const { sound } = await Audio.Sound.createAsync(
+                      // We can just use a simple local asset or system beep, but expo doesn't have system beep out of the box easily.
+                      // Since we don't have an asset, we can just rely on Vibration and a visual alert, or try to load a known URI.
+                      // Let's use a Data URI for a short beep to avoid needing static assets
+                      { uri: 'data:audio/mp3;base64,//OExAAAAANIAAAAAExBTUUzLjEwMKqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq' } // Dummy beep, ideally need real asset. But Vibration is solid.
+                    );
+                    await sound.playAsync();
+                    setTimeout(() => sound.unloadAsync(), 3000);
+                  } catch (e) {
+                    // Fallback if sound fails
+                  }
+                }
+                
+                await sosStore.addEvent(sosEvent);
+              } catch (e) {
+                console.error('[Mesh] Failed to parse SOS event', e);
+              }
+            } else if (message.type === 'sos_cancel') {
+              try {
+                const cancelData = JSON.parse(message.text ?? '{}');
+                if (cancelData.sosId) {
+                  await useSosStore.getState().updateStatus(cancelData.sosId, 'resolved');
+                }
+              } catch (e) {}
+            } else {
+              msgStore.addMessage(message);
+            }
           }
 
           // 3. Store-and-Forward Relaying

@@ -4,7 +4,7 @@
  */
 
 export type MessageStatus = 'pending' | 'sent' | 'delivered' | 'failed';
-export type MessageType = 'text' | 'sos_relay' | 'location_beacon' | 'system';
+export type MessageType = 'text' | 'sos_relay' | 'sos_cancel' | 'location_beacon' | 'system';
 
 export interface Message {
   /** Unique message ID (UUID) */
