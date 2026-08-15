@@ -211,6 +211,13 @@ export default function RootLayout() {
             tabBarIcon: ({ focused }) => <TabIcon symbol="⚙" focused={focused} />,
           }}
         />
+        <Tabs.Screen
+          name="dm/[id]"
+          options={{
+            href: null,
+            title: 'Direct Message',
+          }}
+        />
       </Tabs>
     </SafeAreaProvider>
   );

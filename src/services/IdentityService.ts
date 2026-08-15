@@ -37,6 +37,10 @@ export const IdentityService = {
    * Returns the stable device UUID.
    * Creates and persists a new one on first call.
    */
+  /**
+   * Returns the stable device UUID AND derives the 12-char shortId used
+   * as the primary identity throughout the JS layer.
+   */
   async getDeviceId(): Promise<string> {
     try {
       const existing = await SecureStore.getItemAsync(SECURE_KEY_DEVICE_ID);
@@ -46,7 +50,6 @@ export const IdentityService = {
       await SecureStore.setItemAsync(SECURE_KEY_DEVICE_ID, newId);
       return newId;
     } catch (err) {
-      // SecureStore unavailable (simulator, web) — fall back to AsyncStorage
       console.warn('[IdentityService] SecureStore unavailable, using AsyncStorage fallback', err);
       const fallback = await StorageService.get<string>('device_id_fallback');
       if (fallback) return fallback;
@@ -54,6 +57,16 @@ export const IdentityService = {
       await StorageService.set('device_id_fallback', newId);
       return newId;
     }
+  },
+
+  /**
+   * Derives the 12-character short ID from the full UUID.
+   * This is the identifier used throughout the JS layer (peer store keys,
+   * conversation IDs, senderId in messages).
+   * e.g. "e267410a-a081-4621-b7e7-460cb004ed07" → "E267410AA081"
+   */
+  makeShortId(uuid: string): string {
+    return uuid.replace(/-/g, '').slice(0, 12).toUpperCase();
   },
 
   /**

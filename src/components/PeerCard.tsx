@@ -33,7 +33,7 @@ export function PeerCard({ peer }: Props) {
   return (
     <TouchableOpacity
       style={styles.card}
-      onPress={() => router.push(`/chat?peerId=${peer.id}`)}
+      onPress={() => router.push(`/dm/${peer.id}` as any)}
       accessibilityRole="button"
     >
       <View style={styles.left}>

@@ -83,5 +83,6 @@ export function addMessageListener(
   listener: (event: { payload: string }) => void
 ) {
   if (!emitter) return { remove: () => {} };
+  // @ts-expect-error Expo EventEmitter typings are strict
   return emitter.addListener('onMessageReceived', listener);
 }

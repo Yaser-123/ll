@@ -33,10 +33,13 @@ export const useDeviceStore = create<DeviceState>((set) => ({
   networkStatus: defaultNetworkStatus,
 
   initDevice: async () => {
-    const [deviceId, displayName] = await Promise.all([
+    const [uuid, displayName] = await Promise.all([
       IdentityService.getDeviceId(),
       IdentityService.getDisplayName(),
     ]);
+    // Use the 12-char shortId as the primary deviceId throughout the JS layer
+    // so that peer store keys, conversationIds, and message senderIds all match.
+    const deviceId = IdentityService.makeShortId(uuid);
     set({ deviceId, displayName, isInitialised: true });
   },
 

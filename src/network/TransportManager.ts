@@ -11,6 +11,7 @@ import type { ITransport, TransportEvents, TransportState } from './ITransport';
 import type { Message } from '../domain/Message';
 import type { Location } from '../domain/Location';
 import type { SosEvent } from '../domain/SosEvent';
+import { useMeshQueue } from '../store/useMeshQueue';
 
 
 export interface NetworkStatus {
@@ -62,6 +63,10 @@ class TransportManager {
 
   /** Send a message via all active transports */
   async sendMessage(message: Message, recipientId?: string): Promise<void> {
+    // Persist locally generated messages to the mesh queue so they survive app reloads
+    // while waiting for a peer to come online.
+    await useMeshQueue.getState().enqueue(message);
+
     await Promise.allSettled(
       this.transports.map((t) => t.sendMessage(message, recipientId))
     );

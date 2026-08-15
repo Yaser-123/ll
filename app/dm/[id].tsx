@@ -17,15 +17,16 @@ import {
   Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useLocalSearchParams } from 'expo-router';
 
-import { Colors, Typography, Spacing, Radius } from '../src/theme';
-import { useDeviceStore } from '../src/store/useDeviceStore';
-import { useMessageStore } from '../src/store/useMessageStore';
-import { usePeerStore } from '../src/store/usePeerStore';
-import { NetworkStatusBar } from '../src/components/NetworkStatusBar';
-import { MessageBubble } from '../src/components/MessageBubble';
-import { createMessage, makeConversationId } from '../src/domain/Message';
-import { transportManager } from '../src/network/TransportManager';
+import { Colors, Typography, Spacing, Radius } from '../../src/theme';
+import { useDeviceStore } from '../../src/store/useDeviceStore';
+import { useMessageStore } from '../../src/store/useMessageStore';
+import { usePeerStore } from '../../src/store/usePeerStore';
+import { NetworkStatusBar } from '../../src/components/NetworkStatusBar';
+import { MessageBubble } from '../../src/components/MessageBubble';
+import { createMessage, makeConversationId } from '../../src/domain/Message';
+import { transportManager } from '../../src/network/TransportManager';
 
 // Broadcast conversation — messages sent to the whole mesh
 const BROADCAST_ID = 'broadcast';
@@ -34,14 +35,16 @@ export default function ChatScreen() {
   const { deviceId, networkStatus } = useDeviceStore();
   const { addMessage, getConversation } = useMessageStore();
   const { getPeerList } = usePeerStore();
+  const { id } = useLocalSearchParams<{ id: string }>();
   const [text, setText] = useState('');
   const flatListRef = useRef<FlatList>(null);
 
-  const targetPeerId = BROADCAST_ID;
-  const conversationId = 'broadcast';
+  const targetPeerId = id;
+  const conversationId = makeConversationId(deviceId, targetPeerId);
   const conversation = getConversation(conversationId);
   
-  const peerName = 'Global Mesh Chat';
+  const selectedPeer = getPeerList().find((p: any) => p.id === id);
+  const peerName = selectedPeer ? selectedPeer.displayName : 'Unknown Peer';
 
   const handleSend = useCallback(async () => {
     const trimmed = text.trim();
@@ -71,7 +74,7 @@ export default function ChatScreen() {
       <NetworkStatusBar status={networkStatus} />
 
       <View style={styles.peerHeader}>
-        <Text style={styles.peerHeaderText}><Text style={{fontWeight: 'bold'}}>{peerName}</Text></Text>
+        <Text style={styles.peerHeaderText}>Private Chat with <Text style={{fontWeight: 'bold'}}>{peerName}</Text></Text>
       </View>
 
       <KeyboardAvoidingView
