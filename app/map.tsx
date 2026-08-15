@@ -1,18 +1,17 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Modal } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Modal, TextInput, FlatList, Keyboard } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   Map,
   Camera,
-  PointAnnotation,
-  ShapeSource,
-  LineLayer,
+  Marker,
+  GeoJSONSource,
+  Layer,
   OfflineManager,
-  OfflinePackDownloadState,
 } from '@maplibre/maplibre-react-native';
 import { useLocalSearchParams } from 'expo-router';
 
-import { Colors, Typography, Spacing, Radius } from '../src/theme';
+import { Colors, Typography, Spacing, Radius, Shadow } from '../src/theme';
 import { useLocationStore } from '../src/store/useLocationStore';
 import { useDeviceStore } from '../src/store/useDeviceStore';
 import { useSosStore } from '../src/store/useSosStore';
@@ -54,6 +53,13 @@ export default function MapScreen() {
   const [progress, setProgress] = useState(0);
   const [routeGeoJSON, setRouteGeoJSON] = useState<any>(null);
 
+  // Search state
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [selectedBbox, setSelectedBbox] = useState<[number, number, number, number] | null>(null);
+  const [selectionGeoJSON, setSelectionGeoJSON] = useState<any>(null);
+
   const cameraRef = useRef<any>(null);
   const mapRef = useRef<any>(null);
   const params = useLocalSearchParams<{ lat?: string; lng?: string; sosId?: string }>();
@@ -63,8 +69,17 @@ export default function MapScreen() {
 
   const handleDownload = async () => {
     try {
-      const bounds = await mapRef.current?.getVisibleBounds();
-      if (!bounds) return;
+      let boundsToDownload: [number, number, number, number];
+
+      if (selectedBbox) {
+        // Nominatim boundingbox: [southLat, northLat, westLng, eastLng]
+        const [sLat, nLat, wLng, eLng] = selectedBbox.map(Number);
+        boundsToDownload = [eLng, nLat, wLng, sLat];
+      } else {
+        const bounds = await mapRef.current?.getBounds();
+        if (!bounds) return;
+        boundsToDownload = bounds;
+      }
 
       setDownloading(true);
       setProgress(0);
@@ -72,18 +87,15 @@ export default function MapScreen() {
       const name = `pack-${Date.now()}`;
       await OfflineManager.createPack(
         {
-          name,
-          styleURL: JSON.stringify(OSM_STYLE),
+          metadata: { name },
+          mapStyle: JSON.stringify(OSM_STYLE),
           minZoom: 0,
           maxZoom: 15,
-          bounds: [
-            [bounds[1][0], bounds[1][1]], // NE
-            [bounds[0][0], bounds[0][1]], // SW
-          ],
+          bounds: boundsToDownload,
         },
         (pack: any, status: any) => {
           if (status.percentage) setProgress(status.percentage);
-          if (status.state === OfflinePackDownloadState.Complete) {
+          if (status.state === 2) { // 2 = Complete
             setDownloading(false);
             setDownloadModalVisible(false);
             alert('Region downloaded successfully!');
@@ -152,67 +164,172 @@ export default function MapScreen() {
     }
   }, [mapReady, params.lat, params.lng, myLoc, networkStatus]);
 
+  const searchRegion = async () => {
+    if (!searchQuery.trim()) return;
+    setIsSearching(true);
+    Keyboard.dismiss();
+    try {
+      const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(searchQuery)}&format=json&limit=5`;
+      const res = await fetch(url, { headers: { 'User-Agent': 'LifeLine/1.0' } });
+      const data = await res.json();
+      setSearchResults(data);
+    } catch (e) {
+      console.error(e);
+      alert('Search failed. Check your internet connection.');
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  const selectRegion = (item: any) => {
+    setSearchResults([]);
+    setSearchQuery(item.display_name);
+
+    // Boundingbox is [southLat, northLat, westLng, eastLng]
+    const bbox = item.boundingbox;
+    if (bbox && bbox.length === 4) {
+      setSelectedBbox(bbox);
+      const [sLat, nLat, wLng, eLng] = bbox.map(Number);
+      
+      // Create GeoJSON polygon for visual feedback
+      const polygon = {
+        type: 'Feature',
+        geometry: {
+          type: 'Polygon',
+          coordinates: [[
+            [wLng, nLat],
+            [eLng, nLat],
+            [eLng, sLat],
+            [wLng, sLat],
+            [wLng, nLat], // close polygon
+          ]],
+        },
+      };
+      setSelectionGeoJSON(polygon);
+
+      // Auto-center map on selected region
+      cameraRef.current?.setCamera({
+        centerCoordinate: [Number(item.lon), Number(item.lat)],
+        zoomLevel: 10,
+        animationDuration: 1000,
+      });
+    }
+  };
+
   return (
     <SafeAreaView style={styles.safe} edges={['bottom']}>
       <NetworkStatusBar status={networkStatus} />
 
       <View style={styles.container}>
+        {/* Search Bar Overlay */}
+        <View style={styles.searchContainer}>
+          <View style={styles.searchInputRow}>
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Search city or state to download..."
+              placeholderTextColor={Colors.textSecondary}
+              value={searchQuery}
+              onChangeText={(text) => {
+                setSearchQuery(text);
+                if (text === '') {
+                  setSearchResults([]);
+                  setSelectedBbox(null);
+                  setSelectionGeoJSON(null);
+                }
+              }}
+              onSubmitEditing={searchRegion}
+            />
+            <TouchableOpacity style={styles.searchBtn} onPress={searchRegion}>
+              <Text style={styles.searchBtnText}>{isSearching ? '...' : 'SEARCH'}</Text>
+            </TouchableOpacity>
+          </View>
+
+          {searchResults.length > 0 && (
+            <FlatList
+              data={searchResults}
+              keyExtractor={(item) => item.place_id.toString()}
+              style={styles.resultsList}
+              renderItem={({ item }) => (
+                <TouchableOpacity style={styles.resultItem} onPress={() => selectRegion(item)}>
+                  <Text style={styles.resultText}>{item.display_name}</Text>
+                </TouchableOpacity>
+              )}
+            />
+          )}
+        </View>
+
         <Map
           ref={mapRef}
           style={styles.map}
           mapStyle={OSM_STYLE as any}
-          logoEnabled={false}
-          attributionEnabled={true}
-          attributionPosition={{ bottom: 8, right: 8 }}
           onDidFinishLoadingMap={() => setMapReady(true)}
         >
           <Camera
             ref={cameraRef}
-            zoomLevel={myLoc ? 13 : 2}
-            centerCoordinate={myLoc ? [myLoc.longitude, myLoc.latitude] : [0, 0]}
+            initialViewState={{
+              zoom: myLoc ? 13 : 2,
+              center: myLoc ? [myLoc.longitude, myLoc.latitude] : [0, 0]
+            }}
           />
 
           {/* Render User Location */}
           {myLoc && (
-            <PointAnnotation
+            <Marker
               id="my-location"
-              coordinate={[myLoc.longitude, myLoc.latitude]}
+              lngLat={[myLoc.longitude, myLoc.latitude]}
             >
               <View style={styles.myMarkerContainer}>
                 <View style={styles.myMarker} />
               </View>
-            </PointAnnotation>
+            </Marker>
           )}
 
           {/* Render Active SOS Events */}
           {activeSosEvents.map((event) => {
             if (!event.location) return null;
             return (
-              <PointAnnotation
+              <Marker
                 key={event.id}
                 id={`sos-${event.id}`}
-                coordinate={[event.location.longitude, event.location.latitude]}
+                lngLat={[event.location.longitude, event.location.latitude]}
               >
                 <View style={styles.sosMarkerContainer}>
                   <View style={styles.sosMarkerPulse} />
                   <View style={styles.sosMarkerInner} />
                 </View>
-              </PointAnnotation>
+              </Marker>
             );
           })}
 
           {/* Render Route */}
           {routeGeoJSON && (
-            <ShapeSource id="route-source" shape={routeGeoJSON}>
-              <LineLayer
+            <GeoJSONSource id="route-source" data={routeGeoJSON}>
+              <Layer
                 id="route-layer"
+                type="line"
                 style={{
                   lineColor: Colors.primary,
                   lineWidth: 4,
                   lineOpacity: 0.8,
                 }}
               />
-            </ShapeSource>
+            </GeoJSONSource>
+          )}
+
+          {/* Render Selected Region Bounding Box */}
+          {selectionGeoJSON && (
+            <GeoJSONSource id="selection-source" data={selectionGeoJSON}>
+              <Layer
+                id="selection-line"
+                type="line"
+                style={{
+                  lineColor: '#00FF00',
+                  lineWidth: 3,
+                  lineOpacity: 0.8,
+                  lineDasharray: [2, 2],
+                }}
+              />
+            </GeoJSONSource>
           )}
         </Map>
 
@@ -221,11 +338,18 @@ export default function MapScreen() {
           <TouchableOpacity
             style={styles.controlBtn}
             onPress={() => {
-              if (myLoc) {
-                cameraRef.current?.setCamera({
-                  centerCoordinate: [myLoc.longitude, myLoc.latitude],
-                  zoomLevel: 15,
-                  animationDuration: 500,
+              if (deviceId && myLoc) {
+                useLocationStore.getState().upsertLocation({
+                  deviceId,
+                  latitude: myLoc.latitude,
+                  longitude: myLoc.longitude,
+                  timestamp: new Date().toISOString(),
+                  isSelf: true,
+                });
+                cameraRef.current?.flyTo({
+                  center: [myLoc.longitude, myLoc.latitude],
+                  zoom: 15,
+                  duration: 1000
                 });
               }
             }}
@@ -247,7 +371,9 @@ export default function MapScreen() {
           <View style={styles.modalCard}>
             <Text style={styles.modalTitle}>DOWNLOAD REGION</Text>
             <Text style={styles.modalSub}>
-              Download the currently visible map region for offline emergency use. (Approx 10-30MB)
+              {selectedBbox 
+                ? `Download the selected region (${searchQuery}) for offline emergency use.`
+                : `Download the currently visible map region for offline emergency use.`}
             </Text>
 
             {downloading ? (
@@ -316,6 +442,55 @@ const styles = StyleSheet.create({
     backgroundColor: '#FF3232',
     borderWidth: 2,
     borderColor: '#FFFFFF',
+  },
+
+  searchContainer: {
+    position: 'absolute',
+    top: Spacing.md,
+    left: Spacing.md,
+    right: Spacing.md,
+    zIndex: 10,
+    backgroundColor: Colors.surface,
+    borderRadius: Radius.md,
+    ...Shadow.md,
+  },
+  searchInputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: Spacing.sm,
+  },
+  searchInput: {
+    flex: 1,
+    color: Colors.textPrimary,
+    fontSize: Typography.size.md,
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+  },
+  searchBtn: {
+    backgroundColor: Colors.primary,
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    borderRadius: Radius.sm,
+    marginLeft: Spacing.sm,
+  },
+  searchBtnText: {
+    color: Colors.background,
+    fontWeight: Typography.weight.bold,
+    fontSize: Typography.size.sm,
+  },
+  resultsList: {
+    maxHeight: 200,
+    borderTopWidth: 1,
+    borderTopColor: Colors.surfaceBorder,
+  },
+  resultItem: {
+    padding: Spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.surfaceBorder,
+  },
+  resultText: {
+    color: Colors.textPrimary,
+    fontSize: Typography.size.sm,
   },
 
   controlsOverlay: {
