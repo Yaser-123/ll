@@ -34,6 +34,9 @@ export interface Message {
 
   /** Number of hops this message has taken through the mesh (for relay tracking) */
   hopCount: number;
+
+  /** Maximum allowed hops before the message is dropped (TTL) */
+  maxHops: number;
 }
 
 export function makeConversationId(idA: string, idB: string): string {
@@ -50,6 +53,7 @@ export function createMessage(
     conversationId: makeConversationId(partial.senderId, partial.recipientId),
     status: 'pending',
     hopCount: 0,
+    maxHops: 5,
     createdAt: now,
     updatedAt: now,
     ...partial,

@@ -17,6 +17,7 @@ import { usePeerStore } from '../src/store/usePeerStore';
 import { useMessageStore } from '../src/store/useMessageStore';
 import { useSosStore } from '../src/store/useSosStore';
 import { useLocationStore } from '../src/store/useLocationStore';
+import { useMeshQueue } from '../src/store/useMeshQueue';
 import { transportManager } from '../src/network/TransportManager';
 import { createBleTransport } from '../src/network/BleTransport';
 
@@ -33,6 +34,7 @@ export default function RootLayout() {
   const { initDevice, isInitialised, updateNetworkStatus } = useDeviceStore();
   const { loadPeers } = usePeerStore();
   const { loadMessages } = useMessageStore();
+  const { loadQueue } = useMeshQueue();
   const { loadEvents } = useSosStore();
   const { loadLocations } = useLocationStore();
 
@@ -44,6 +46,7 @@ export default function RootLayout() {
         initDevice(),
         loadPeers(),
         loadMessages(),
+        loadQueue(),
         loadEvents(),
         loadLocations(),
       ]);
@@ -65,8 +68,38 @@ export default function RootLayout() {
         onPeerLost: (peerId) => {
           usePeerStore.getState().markOffline(peerId);
         },
-        onMessageReceived: (message) => {
-          useMessageStore.getState().addMessage(message);
+        onMessageReceived: async (message) => {
+          const selfId = useDeviceStore.getState().deviceId;
+          const msgStore = useMessageStore.getState();
+          const queueStore = useMeshQueue.getState();
+
+          // 1. Deduplication
+          if (msgStore.hasSeenMessage(message.id)) {
+            console.log(`[Mesh] Dropping duplicate message ${message.id}`);
+            return;
+          }
+          await msgStore.markMessageSeen(message.id);
+
+          // 2. Is this message for us?
+          const isForUs = message.recipientId === selfId || message.recipientId === 'broadcast';
+          if (isForUs) {
+            msgStore.addMessage(message);
+          }
+
+          // 3. Store-and-Forward Relaying
+          const isFromUs = message.senderId === selfId;
+          if (!isFromUs && message.hopCount < message.maxHops) {
+            console.log(`[Mesh] Relaying message ${message.id} (Hop ${message.hopCount + 1}/${message.maxHops})`);
+            const relayedMsg = { ...message, hopCount: message.hopCount + 1 };
+            
+            // Enqueue for offline peers
+            await queueStore.enqueue(relayedMsg);
+            
+            // Immediately broadcast to currently active peers
+            transportManager.sendMessage(relayedMsg);
+          } else if (!isFromUs) {
+            console.log(`[Mesh] Dropping message ${message.id} (Max hops reached)`);
+          }
         },
         onSosReceived: (sos) => {
           useSosStore.getState().addEvent(sos);

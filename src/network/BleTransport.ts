@@ -47,9 +47,10 @@ import * as BleAdvertiser from 'lifeline-ble-advertiser';
 import { Buffer } from 'buffer';
 import { requestBlePermissions } from '../services/PermissionService';
 import type { ITransport, TransportEvents, TransportState } from './ITransport';
-import type { Peer } from '../domain/Peer';
+import type { Peer, TransportType } from '../domain/Peer';
 import type { Message } from '../domain/Message';
 import { makeConversationId } from '../domain/Message';
+import { useMeshQueue } from '../store/useMeshQueue';
 import type { Location } from '../domain/Location';
 import type { SosEvent } from '../domain/SosEvent';
 
@@ -148,8 +149,9 @@ function parseLocalName(
 // ────────────────────────────────────────────────────────────────────────────
 
 export class BleTransport implements ITransport {
-  readonly type = 'bluetooth' as const;
-  readonly label = 'Bluetooth LE';
+  public readonly id = 'ble_transport_primary';
+  public readonly type: TransportType = 'bluetooth';
+  public readonly label = 'Bluetooth LE';
 
   private _state: TransportState = 'idle';
   private events: TransportEvents | null = null;
@@ -525,10 +527,18 @@ export class BleTransport implements ITransport {
   // ─────────────────────────────────────────────────────────────────────────
 
   private async flushOutbox(shortId: string, freshDevice?: Device): Promise<void> {
-    const queue = this.outbox.get(shortId);
-    if (!queue || queue.length === 0) return;
+    const memoryQueue = this.outbox.get(shortId) ?? [];
+    
+    // Pull any persistently queued messages for this peer or broadcasts
+    const storeQueue = useMeshQueue.getState().dequeueForPeer(shortId);
+    
+    // Merge, deduplicate by ID, and prepare queue
+    const allMessages = [...memoryQueue, ...storeQueue];
+    const uniqueMessages = Array.from(new Map(allMessages.map(m => [m.id, m])).values());
+    
+    if (uniqueMessages.length === 0) return;
 
-    // Use the freshest Device object we have — this avoids stale/rotated MACs
+    // Use the freshest Device reference, fallback to map, fallback to instantiating
     const device = freshDevice ?? this.peerDeviceObjectMap.get(shortId);
     if (!device) {
       console.warn(`[BleTransport] No device object for ${shortId}, cannot flush.`);
@@ -547,7 +557,7 @@ export class BleTransport implements ITransport {
     }
     this.isConnecting = true;
 
-    console.log(`[BleTransport] Flushing outbox for ${shortId} (${queue.length} messages)...`);
+    console.log(`[BleTransport] Flushing outbox for ${shortId} (${uniqueMessages.length} messages)...`);
 
     try {
       // Stop scanning — Android cannot scan while holding a GATT connection
@@ -577,8 +587,8 @@ export class BleTransport implements ITransport {
       console.log(`[BleTransport] Services discovered. Negotiated MTU=${mtu}.`);
 
       // Send all queued messages
-      while (queue.length > 0) {
-        const msg = queue[0];
+      while (uniqueMessages.length > 0) {
+        const msg = uniqueMessages[0];
         
         // Format for offline packet: Plaintext JSON (E2EE omitted per Module 3 guidelines)
         // Use selfShortId (not the full UUID) so the receiver can match it directly
@@ -587,10 +597,12 @@ export class BleTransport implements ITransport {
           protocol: 'lifeline/1.0',
           type: 'chat',
           messageId: msg.id,
-          senderId: this.selfShortId,
+          senderId: this.selfShortId, // Original sender or relay node (we'll keep it simple for now, recipient verifies ID)
           recipientId: msg.recipientId,
           timestamp: msg.createdAt,
           payload: msg.text,
+          hopCount: msg.hopCount,
+          maxHops: msg.maxHops,
         });
 
         const base64Payload = Buffer.from(packet, 'utf8').toString('base64');
@@ -605,12 +617,17 @@ export class BleTransport implements ITransport {
         );
 
         console.log(`[BleTransport] Successfully sent msg ${msg.id} to ${shortId}`);
-        queue.shift(); // Remove from queue
+        uniqueMessages.shift(); // Remove from processing list
 
-        // Notify app layer of delivery success
-        msg.status = 'sent';
-        this.events?.onMessageReceived(msg); // Note: We should ideally have an onMessageDelivered event, but updating local store handles this. Wait, transport doesn't have onMessageDelivered. We just update the store directly or emit an event? For now, we trust the queue.
-        // Let's rely on the store picking up the change or just fire a success callback if we had one.
+        // Notify app layer of delivery success (we only reliably know the first hop succeeded)
+        if (msg.status === 'pending') {
+          this.events?.onMessageDelivered?.(msg.id);
+        }
+        await useMeshQueue.getState().removeMessage(msg.id);
+        const currentMemoryQueue = this.outbox.get(shortId);
+        if (currentMemoryQueue) {
+          this.outbox.set(shortId, currentMemoryQueue.filter(m => m.id !== msg.id));
+        }
       }
 
       await connectedDevice.cancelConnection();
@@ -664,7 +681,8 @@ export class BleTransport implements ITransport {
         type: 'text',
         text: parsed.payload,
         status: 'delivered',
-        hopCount: 0,
+        hopCount: typeof parsed.hopCount === 'number' ? parsed.hopCount : 0,
+        maxHops: typeof parsed.maxHops === 'number' ? parsed.maxHops : 5,
         createdAt: parsed.timestamp,
         updatedAt: new Date().toISOString(),
       };

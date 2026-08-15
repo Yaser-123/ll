@@ -17,6 +17,7 @@ export interface TransportEvents {
   onPeerDiscovered: (peer: Peer) => void;
   onPeerLost: (peerId: string) => void;
   onMessageReceived: (message: Message) => void;
+  onMessageDelivered?: (messageId: string) => void;
   onSosReceived: (sos: SosEvent) => void;
   onLocationReceived: (location: Location) => void;
   onError: (error: Error) => void;
@@ -34,6 +35,9 @@ export type TransportState =
   | 'unavailable';       // Native module not present (e.g. running in Expo Go)
 
 export interface ITransport {
+  /** Unique ID for this transport instance */
+  readonly id: string;
+
   /** Stable identifier for this transport type */
   readonly type: TransportType;
 

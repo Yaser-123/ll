@@ -26,6 +26,13 @@ export function MessageBubble({ message, isSelf }: Props) {
     minute: '2-digit',
   });
 
+  let hopLabel = '';
+  if (message.hopCount > 0) {
+    hopLabel = `${message.hopCount}-hop`;
+  } else {
+    hopLabel = 'Direct';
+  }
+
   return (
     <View style={[styles.row, isSelf ? styles.rowSelf : styles.rowOther]}>
       <View style={[styles.bubble, isSelf ? styles.bubbleSelf : styles.bubbleOther]}>
@@ -39,12 +46,15 @@ export function MessageBubble({ message, isSelf }: Props) {
           {message.text ?? ''}
         </Text>
         <View style={styles.meta}>
-          <Text style={styles.time}>{time}</Text>
-          {isSelf && (
-            <Text style={[styles.status, message.status === 'failed' ? styles.statusFailed : null]}>
-              {statusIcon}
-            </Text>
-          )}
+          <Text style={styles.meshTag}>{hopLabel}</Text>
+          <View style={styles.timeStatusWrapper}>
+            <Text style={styles.time}>{time}</Text>
+            {isSelf && (
+              <Text style={[styles.status, message.status === 'failed' ? styles.statusFailed : null]}>
+                {statusIcon}
+              </Text>
+            )}
+          </View>
         </View>
       </View>
     </View>
@@ -92,10 +102,21 @@ const styles = StyleSheet.create({
   },
   meta: {
     flexDirection: 'row',
-    justifyContent: 'flex-end',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: Spacing.xs,
+    gap: Spacing.lg,
+  },
+  timeStatusWrapper: {
+    flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.xs,
-    marginTop: Spacing.xs,
+  },
+  meshTag: {
+    fontSize: Typography.size.xs - 2,
+    color: Colors.textTertiary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   time: {
     fontSize: Typography.size.xs,

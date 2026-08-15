@@ -15,10 +15,16 @@ import type { SosEvent } from '../domain/SosEvent';
 import type { TransportType } from '../domain/Peer';
 
 export class MockTransport implements ITransport {
-  readonly type: TransportType = 'unknown';
-  readonly label = 'Mock (No-op)';
-
+  public readonly id: string;
+  public readonly type: TransportType;
+  public readonly label: string;
   private _state: TransportState = 'idle';
+
+  constructor(type: TransportType, label: string) {
+    this.id = `mock_${type}_${Math.random().toString(36).substring(7)}`;
+    this.type = type;
+    this.label = label;
+  }
 
   get state(): TransportState {
     return this._state;
