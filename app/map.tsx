@@ -60,6 +60,10 @@ export default function MapScreen() {
   const [selectedBbox, setSelectedBbox] = useState<[number, number, number, number] | null>(null);
   const [selectionGeoJSON, setSelectionGeoJSON] = useState<any>(null);
 
+  // Manage Offline Packs
+  const [manageModalVisible, setManageModalVisible] = useState(false);
+  const [offlinePacks, setOfflinePacks] = useState<any[]>([]);
+
   const cameraRef = useRef<any>(null);
   const mapRef = useRef<any>(null);
   const params = useLocalSearchParams<{ lat?: string; lng?: string; sosId?: string }>();
@@ -84,7 +88,7 @@ export default function MapScreen() {
       setDownloading(true);
       setProgress(0);
 
-      const name = `pack-${Date.now()}`;
+      const name = searchQuery ? searchQuery : `Region (${new Date().toLocaleDateString()})`;
       await OfflineManager.createPack(
         {
           metadata: { name },
@@ -216,6 +220,28 @@ export default function MapScreen() {
     }
   };
 
+  const openManageModal = async () => {
+    try {
+      const packs = await OfflineManager.getPacks();
+      setOfflinePacks(packs);
+      setManageModalVisible(true);
+    } catch (e) {
+      console.error(e);
+      alert('Failed to load offline maps');
+    }
+  };
+
+  const deletePack = async (id: string) => {
+    try {
+      await OfflineManager.deletePack(id);
+      const packs = await OfflineManager.getPacks();
+      setOfflinePacks(packs);
+    } catch (e) {
+      console.error(e);
+      alert('Failed to delete offline map');
+    }
+  };
+
   return (
     <SafeAreaView style={styles.safe} edges={['bottom']}>
       <NetworkStatusBar status={networkStatus} />
@@ -308,9 +334,9 @@ export default function MapScreen() {
                 id="route-layer"
                 type="line"
                 paint={{
-                  lineColor: Colors.primary,
-                  lineWidth: 4,
-                  lineOpacity: 0.8,
+                  'line-color': Colors.primary,
+                  'line-width': 4,
+                  'line-opacity': 0.8,
                 }}
               />
             </GeoJSONSource>
@@ -323,10 +349,10 @@ export default function MapScreen() {
                 id="selection-line"
                 type="line"
                 paint={{
-                  lineColor: '#00FF00',
-                  lineWidth: 3,
-                  lineOpacity: 0.8,
-                  lineDasharray: [2, 2],
+                  'line-color': '#00FF00',
+                  'line-width': 3,
+                  'line-opacity': 0.8,
+                  'line-dasharray': [2, 2],
                 }}
               />
             </GeoJSONSource>
@@ -360,10 +386,49 @@ export default function MapScreen() {
             style={styles.controlBtnPrimary}
             onPress={() => setDownloadModalVisible(true)}
           >
-            <Text style={styles.controlBtnTextPrimary}>DOWNLOAD MAP</Text>
+            <Text style={styles.controlBtnTextPrimary}>DOWNLOAD</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.controlBtnPrimary}
+            onPress={openManageModal}
+          >
+            <Text style={styles.controlBtnTextPrimary}>MANAGE</Text>
           </TouchableOpacity>
         </View>
       </View>
+
+      {/* Manage Maps Modal */}
+      <Modal visible={manageModalVisible} transparent animationType="slide" onRequestClose={() => setManageModalVisible(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>OFFLINE MAPS</Text>
+            <Text style={styles.modalSub}>Manage your downloaded regions.</Text>
+
+            <FlatList
+              data={offlinePacks}
+              keyExtractor={(item) => item.id}
+              style={{ maxHeight: 300, marginBottom: Spacing.md }}
+              ListEmptyComponent={<Text style={styles.modalSub}>No offline maps downloaded.</Text>}
+              renderItem={({ item }) => (
+                <View style={styles.packItem}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.packName}>{item.metadata?.name || 'Unknown Region'}</Text>
+                  </View>
+                  <TouchableOpacity style={styles.deleteBtn} onPress={() => deletePack(item.id)}>
+                    <Text style={styles.deleteBtnText}>DELETE</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+            />
+
+            <View style={styles.modalActions}>
+              <TouchableOpacity style={styles.cancelBtn} onPress={() => setManageModalVisible(false)}>
+                <Text style={styles.cancelBtnText}>CLOSE</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       {/* Download Modal */}
       <Modal visible={downloadModalVisible} transparent animationType="slide" onRequestClose={() => !downloading && setDownloadModalVisible(false)}>
@@ -601,11 +666,34 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primary,
     paddingVertical: Spacing.md,
     paddingHorizontal: Spacing.lg,
-    borderRadius: Radius.md,
+    borderRadius: Radius.sm,
   },
   confirmBtnText: {
     color: Colors.background,
     fontWeight: Typography.weight.bold,
     fontSize: Typography.size.sm,
+  },
+  packItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: Spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.surfaceBorder,
+  },
+  packName: {
+    color: Colors.textPrimary,
+    fontSize: Typography.size.md,
+    fontWeight: Typography.weight.bold,
+  },
+  deleteBtn: {
+    backgroundColor: Colors.danger || '#FF4444',
+    paddingVertical: Spacing.xs,
+    paddingHorizontal: Spacing.sm,
+    borderRadius: Radius.sm,
+  },
+  deleteBtnText: {
+    color: '#FFF',
+    fontSize: Typography.size.sm,
+    fontWeight: Typography.weight.bold,
   },
 });
