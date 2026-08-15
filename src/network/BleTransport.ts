@@ -563,7 +563,7 @@ export class BleTransport implements ITransport {
 
       console.log(`[BleTransport] Discovering services...`);
       await connectedDevice.discoverAllServicesAndCharacteristics();
-      console.log(`[BleTransport] Services discovered successfully.`);
+      console.log(`[BleTransport] Services discovered. MTU=${(connectedDevice as any).mtu ?? 'unknown'}.`);
 
       // Send all queued messages
       while (queue.length > 0) {
@@ -580,8 +580,11 @@ export class BleTransport implements ITransport {
         });
 
         const base64Payload = Buffer.from(packet, 'utf8').toString('base64');
+        console.log(`[BleTransport] Writing ${packet.length} byte payload (${base64Payload.length} b64 chars)...`);
 
-        await connectedDevice.writeCharacteristicWithoutResponseForService(
+        // writeWithResponse ensures the packet is fully received and ACKed before we continue.
+        // writeWithoutResponse silently truncates packets larger than MTU-3 bytes.
+        await connectedDevice.writeCharacteristicWithResponseForService(
           MESSAGING_SERVICE_UUID,
           WRITE_CHARACTERISTIC_UUID,
           base64Payload
