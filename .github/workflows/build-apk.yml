@@ -61,6 +61,7 @@ jobs:
 
       - name: Build Android Debug APK
         run: |
+          rm -rf android/app/src/main/assets/ggml-hexagon
           cd android
           chmod +x gradlew
           ./gradlew assembleDebug --build-cache --parallel --daemon
