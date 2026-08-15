@@ -160,7 +160,7 @@ export default function MapScreen() {
         <Map
           ref={mapRef}
           style={styles.map}
-          styleJSON={JSON.stringify(OSM_STYLE)}
+          mapStyle={OSM_STYLE as any}
           logoEnabled={false}
           attributionEnabled={true}
           attributionPosition={{ bottom: 8, right: 8 }}
