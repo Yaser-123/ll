@@ -37,7 +37,8 @@ export default function RootLayout() {
   const { loadLocations } = useLocationStore();
 
   useEffect(() => {
-    // Bootstrap all stores and the transport layer
+    let cleanup: (() => void) | undefined;
+
     async function bootstrap() {
       await Promise.all([
         initDevice(),
@@ -82,13 +83,18 @@ export default function RootLayout() {
         updateNetworkStatus(transportManager.getNetworkStatus());
       }, 5000);
 
-      return () => {
+      // Store cleanup so the useEffect return value can call it
+      cleanup = () => {
         clearInterval(interval);
         transportManager.stop();
       };
     }
 
     bootstrap();
+
+    // React will call this on unmount (and between Strict Mode double-renders).
+    // This ensures the old transport is fully stopped before a new one starts.
+    return () => { cleanup?.(); };
   }, []);
 
 
