@@ -1,8 +1,15 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Modal } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-// @ts-ignore
-import MapLibreGL from '@maplibre/maplibre-react-native';
+import {
+  Map,
+  Camera,
+  PointAnnotation,
+  ShapeSource,
+  LineLayer,
+  OfflineManager,
+  OfflinePackDownloadState,
+} from '@maplibre/maplibre-react-native';
 import { useLocalSearchParams } from 'expo-router';
 
 import { Colors, Typography, Spacing, Radius } from '../src/theme';
@@ -10,9 +17,6 @@ import { useLocationStore } from '../src/store/useLocationStore';
 import { useDeviceStore } from '../src/store/useDeviceStore';
 import { useSosStore } from '../src/store/useSosStore';
 import { NetworkStatusBar } from '../src/components/NetworkStatusBar';
-
-// We do not need an access token for OpenStreetMap raster tiles
-MapLibreGL.setAccessToken(null);
 
 const OSM_STYLE = {
   version: 8,
@@ -50,8 +54,8 @@ export default function MapScreen() {
   const [progress, setProgress] = useState(0);
   const [routeGeoJSON, setRouteGeoJSON] = useState<any>(null);
 
-  const cameraRef = useRef<MapLibreGL.Camera>(null);
-  const mapRef = useRef<MapLibreGL.MapView>(null);
+  const cameraRef = useRef<any>(null);
+  const mapRef = useRef<any>(null);
   const params = useLocalSearchParams<{ lat?: string; lng?: string; sosId?: string }>();
 
   const activeSosEvents = getActiveEvents();
@@ -66,7 +70,7 @@ export default function MapScreen() {
       setProgress(0);
 
       const name = `pack-${Date.now()}`;
-      await MapLibreGL.offlineManager.createPack(
+      await OfflineManager.createPack(
         {
           name,
           styleURL: JSON.stringify(OSM_STYLE),
@@ -79,7 +83,7 @@ export default function MapScreen() {
         },
         (pack: any, status: any) => {
           if (status.percentage) setProgress(status.percentage);
-          if (status.state === MapLibreGL.OfflinePackDownloadState.Complete) {
+          if (status.state === OfflinePackDownloadState.Complete) {
             setDownloading(false);
             setDownloadModalVisible(false);
             alert('Region downloaded successfully!');
@@ -153,7 +157,7 @@ export default function MapScreen() {
       <NetworkStatusBar status={networkStatus} />
 
       <View style={styles.container}>
-        <MapLibreGL.MapView
+        <Map
           ref={mapRef}
           style={styles.map}
           styleJSON={JSON.stringify(OSM_STYLE)}
@@ -162,7 +166,7 @@ export default function MapScreen() {
           attributionPosition={{ bottom: 8, right: 8 }}
           onDidFinishLoadingMap={() => setMapReady(true)}
         >
-          <MapLibreGL.Camera
+          <Camera
             ref={cameraRef}
             zoomLevel={myLoc ? 13 : 2}
             centerCoordinate={myLoc ? [myLoc.longitude, myLoc.latitude] : [0, 0]}
@@ -170,21 +174,21 @@ export default function MapScreen() {
 
           {/* Render User Location */}
           {myLoc && (
-            <MapLibreGL.PointAnnotation
+            <PointAnnotation
               id="my-location"
               coordinate={[myLoc.longitude, myLoc.latitude]}
             >
               <View style={styles.myMarkerContainer}>
                 <View style={styles.myMarker} />
               </View>
-            </MapLibreGL.PointAnnotation>
+            </PointAnnotation>
           )}
 
           {/* Render Active SOS Events */}
           {activeSosEvents.map((event) => {
             if (!event.location) return null;
             return (
-              <MapLibreGL.PointAnnotation
+              <PointAnnotation
                 key={event.id}
                 id={`sos-${event.id}`}
                 coordinate={[event.location.longitude, event.location.latitude]}
@@ -193,14 +197,14 @@ export default function MapScreen() {
                   <View style={styles.sosMarkerPulse} />
                   <View style={styles.sosMarkerInner} />
                 </View>
-              </MapLibreGL.PointAnnotation>
+              </PointAnnotation>
             );
           })}
 
           {/* Render Route */}
           {routeGeoJSON && (
-            <MapLibreGL.ShapeSource id="route-source" shape={routeGeoJSON}>
-              <MapLibreGL.LineLayer
+            <ShapeSource id="route-source" shape={routeGeoJSON}>
+              <LineLayer
                 id="route-layer"
                 style={{
                   lineColor: Colors.primary,
@@ -208,9 +212,9 @@ export default function MapScreen() {
                   lineOpacity: 0.8,
                 }}
               />
-            </MapLibreGL.ShapeSource>
+            </ShapeSource>
           )}
-        </MapLibreGL.MapView>
+        </Map>
 
         {/* Floating Controls */}
         <View style={styles.controlsOverlay}>
