@@ -21,6 +21,7 @@ import { useSosStore } from '../src/store/useSosStore';
 import * as Location from 'expo-location';
 import { useLocationStore } from '../src/store/useLocationStore';
 import { useMeshQueue } from '../src/store/useMeshQueue';
+import { useAiStore } from '../src/store/useAiStore';
 import { transportManager } from '../src/network/TransportManager';
 import { createBleTransport } from '../src/network/BleTransport';
 
@@ -52,6 +53,7 @@ export default function RootLayout() {
         loadQueue(),
         loadEvents(),
         loadLocations(),
+        useAiStore.getState().loadConversations(),
       ]);
 
       // Register real BLE transport AFTER identity is initialised so we
