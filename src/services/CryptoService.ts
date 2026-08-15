@@ -1,14 +1,13 @@
 import nacl from 'tweetnacl';
 import naclUtil from 'tweetnacl-util';
-// Removed expo-crypto to avoid crashing the existing native Dev Client
+import * as crypto from 'expo-crypto';
 
-// TEMPORARY INSECURE PRNG FALLBACK
-// Since expo-crypto native module isn't in the current APK, we must polyfill
-// using Math.random so testing can continue immediately without an hour-long rebuild.
+// Polyfill random bytes for TweetNaCl using expo-crypto since tweetnacl expects 
+// window.crypto.getRandomValues or crypto.randomBytes
 nacl.setPRNG((x: Uint8Array, n: number) => {
-  console.warn('[CryptoService] WARNING: Using INSECURE Math.random fallback. Rebuild APK to use real crypto.');
+  const randomBytes = crypto.getRandomBytes(n);
   for (let i = 0; i < n; i++) {
-    x[i] = Math.floor(Math.random() * 256);
+    x[i] = randomBytes[i];
   }
 });
 
@@ -45,11 +44,7 @@ export const CryptoService = {
    * Uses ephemeral nonces.
    */
   encryptDM(text: string, recipientPublicKeyBase64: string, senderSecretKeyBase64: string): string {
-    // Generate 24 random bytes for the nonce
-    const nonce = new Uint8Array(nacl.box.nonceLength);
-    for (let i = 0; i < nonce.length; i++) {
-      nonce[i] = Math.floor(Math.random() * 256);
-    }
+    const nonce = crypto.getRandomBytes(nacl.box.nonceLength);
     const messageUint8 = naclUtil.decodeUTF8(text);
     const recipientPubKey = naclUtil.decodeBase64(recipientPublicKeyBase64);
     const senderSecKey = naclUtil.decodeBase64(senderSecretKeyBase64);
