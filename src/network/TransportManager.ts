@@ -12,6 +12,9 @@ import type { Message } from '../domain/Message';
 import type { Location } from '../domain/Location';
 import type { SosEvent } from '../domain/SosEvent';
 import { useMeshQueue } from '../store/useMeshQueue';
+import { useKeyStore } from '../store/useKeyStore';
+import { CryptoService } from '../services/CryptoService';
+import { IdentityService } from '../services/IdentityService';
 
 
 export interface NetworkStatus {
@@ -63,10 +66,43 @@ class TransportManager {
 
   /** Send a message via all active transports */
   async sendMessage(message: Message, recipientId?: string): Promise<void> {
-    // Persist locally generated messages to the mesh queue so they survive app reloads
-    // while waiting for a peer to come online.
+    
+    // 1. Encrypt E2E DMs
+    if (message.type === 'text' && message.recipientId !== 'broadcast' && !message.encrypted && message.text) {
+      const peerKeys = useKeyStore.getState().getKeys(message.recipientId);
+      if (!peerKeys) {
+        // We do not have the key yet. Queue it as plaintext for later retries.
+        await useMeshQueue.getState().enqueue(message);
+        console.log(`[TransportManager] Queued DM for ${message.recipientId}, awaiting public key.`);
+        return;
+      }
+      
+      try {
+        const myEncKeys = await IdentityService.getEncryptionKeyPair();
+        message.text = CryptoService.encryptDM(message.text, peerKeys.encryptionPublicKey, myEncKeys.secretKey);
+        message.encrypted = true;
+      } catch (err) {
+        console.error('[TransportManager] Failed to encrypt message', err);
+        return;
+      }
+    }
+
+    // 2. Sign for Integrity
+    if (!message.signature) {
+      try {
+        const mySignKeys = await IdentityService.getSigningKeyPair();
+        const payloadToSign = JSON.stringify({ ...message, signature: undefined });
+        message.signature = CryptoService.signPayload(payloadToSign, mySignKeys.secretKey);
+      } catch (err) {
+        console.error('[TransportManager] Failed to sign message', err);
+        return;
+      }
+    }
+
+    // 3. Persist network-ready packet to mesh queue
     await useMeshQueue.getState().enqueue(message);
 
+    // 4. Dispatch to hardware
     await Promise.allSettled(
       this.transports.map((t) => t.sendMessage(message, recipientId))
     );

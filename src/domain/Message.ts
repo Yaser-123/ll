@@ -4,7 +4,7 @@
  */
 
 export type MessageStatus = 'pending' | 'sent' | 'delivered' | 'failed';
-export type MessageType = 'text' | 'sos_relay' | 'sos_cancel' | 'location_beacon' | 'system';
+export type MessageType = 'text' | 'sos_relay' | 'sos_cancel' | 'location_beacon' | 'system' | 'key_exchange';
 
 export interface Message {
   /** Unique message ID (UUID) */
@@ -37,6 +37,12 @@ export interface Message {
 
   /** Maximum allowed hops before the message is dropped (TTL) */
   maxHops: number;
+
+  /** Indicates if the text payload is E2E encrypted ciphertext */
+  encrypted?: boolean;
+
+  /** Cryptographic signature of the metadata + payload for authentication/integrity */
+  signature?: string;
 }
 
 export function makeConversationId(idA: string, idB: string): string {

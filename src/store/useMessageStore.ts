@@ -8,6 +8,8 @@
 import { create } from 'zustand';
 import type { Message } from '../domain/Message';
 import { StorageService } from '../services/StorageService';
+import { CryptoService } from '../services/CryptoService';
+import { IdentityService } from '../services/IdentityService';
 
 const STORAGE_KEY = 'messages';
 const MAX_MESSAGES = 500; // Keep the last 500 messages to limit storage
@@ -25,6 +27,7 @@ interface MessageState {
   // Mesh loop prevention
   hasSeenMessage: (id: string) => boolean;
   markMessageSeen: (id: string) => Promise<void>;
+  _persistMessages: (messages: Message[]) => Promise<void>;
 }
 
 const SEEN_MESSAGES_KEY = 'seen_messages';
@@ -36,14 +39,27 @@ export const useMessageStore = create<MessageState>((set, get) => ({
   _seen: new Set<string>(),
 
   loadMessages: async () => {
-    const [stored, seen] = await Promise.all([
+    const [stored, seen, encKeyPair] = await Promise.all([
       StorageService.get<Message[]>(STORAGE_KEY),
       StorageService.get<string[]>(SEEN_MESSAGES_KEY),
+      IdentityService.getEncryptionKeyPair()
     ]);
     
-    const messages = stored ?? [];
+    let messages = stored ?? [];
     const seenArray = seen ?? [];
     
+    // Decrypt messages at rest
+    messages = messages.map(m => {
+      if (m.type === 'text' && m.recipientId !== 'broadcast' && m.encrypted && m.text) {
+        // At rest, DMs are encrypted with the local device's public key
+        const decrypted = CryptoService.decryptDM(m.text, encKeyPair.publicKey, encKeyPair.secretKey);
+        if (decrypted) {
+          return { ...m, text: decrypted, encrypted: false };
+        }
+      }
+      return m;
+    });
+
     // Deduplicate any corrupted data from older buggy versions
     const uniqueMessages = Array.from(new Map(messages.map((m) => [m.id, m])).values());
     
@@ -58,14 +74,27 @@ export const useMessageStore = create<MessageState>((set, get) => ({
 
     // Auto-heal local storage
     if (uniqueMessages.length !== messages.length) {
-      await StorageService.set(STORAGE_KEY, uniqueMessages);
+      get()._persistMessages(uniqueMessages);
     }
+  },
+
+  _persistMessages: async (messagesToSave: Message[]) => {
+    const encKeyPair = await IdentityService.getEncryptionKeyPair();
+    const encryptedMessages = messagesToSave.map(m => {
+      if (m.type === 'text' && m.recipientId !== 'broadcast' && m.text && !m.encrypted) {
+        // Encrypt using our own keypair so only this device can decrypt the local database
+        const cipher = CryptoService.encryptDM(m.text, encKeyPair.publicKey, encKeyPair.secretKey);
+        return { ...m, text: cipher, encrypted: true };
+      }
+      return m;
+    });
+    await StorageService.set(STORAGE_KEY, encryptedMessages);
   },
 
   addMessage: async (message: Message) => {
     const messages = [message, ...get().messages].slice(0, MAX_MESSAGES);
     set({ messages });
-    await StorageService.set(STORAGE_KEY, messages);
+    await (get() as any)._persistMessages(messages);
     await get().markMessageSeen(message.id);
   },
 
@@ -74,7 +103,7 @@ export const useMessageStore = create<MessageState>((set, get) => ({
       m.id === id ? { ...m, status, updatedAt: new Date().toISOString() } : m
     );
     set({ messages });
-    await StorageService.set(STORAGE_KEY, messages);
+    await (get() as any)._persistMessages(messages);
   },
 
   getConversation: (conversationId: string) =>

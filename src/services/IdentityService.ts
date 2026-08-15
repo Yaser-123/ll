@@ -10,9 +10,12 @@
 
 import * as SecureStore from 'expo-secure-store';
 import { StorageService } from './StorageService';
+import { CryptoService, type KeyPair } from './CryptoService';
 
 const SECURE_KEY_DEVICE_ID = 'device_id';
 const STORAGE_KEY_DEVICE_NAME = 'device_name';
+const SECURE_KEY_ENC_KEYPAIR = 'enc_keypair';
+const SECURE_KEY_SIGN_KEYPAIR = 'sign_keypair';
 
 function generateUUID(): string {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) {
@@ -87,5 +90,51 @@ export const IdentityService = {
    */
   async setDisplayName(name: string): Promise<void> {
     await StorageService.set(STORAGE_KEY_DEVICE_NAME, name.trim());
+  },
+
+  /**
+   * Returns the stable encryption keypair.
+   * Generates and persists a new one if it doesn't exist.
+   */
+  async getEncryptionKeyPair(): Promise<KeyPair> {
+    try {
+      const existing = await SecureStore.getItemAsync(SECURE_KEY_ENC_KEYPAIR);
+      if (existing) return JSON.parse(existing) as KeyPair;
+
+      const newKp = CryptoService.generateEncryptionKeyPair();
+      await SecureStore.setItemAsync(SECURE_KEY_ENC_KEYPAIR, JSON.stringify(newKp));
+      return newKp;
+    } catch (err) {
+      console.warn('[IdentityService] SecureStore unavailable for enc key, using AsyncStorage fallback', err);
+      const fallback = await StorageService.get<KeyPair>('enc_keypair_fallback');
+      if (fallback) return fallback;
+      
+      const newKp = CryptoService.generateEncryptionKeyPair();
+      await StorageService.set('enc_keypair_fallback', newKp);
+      return newKp;
+    }
+  },
+
+  /**
+   * Returns the stable signing keypair.
+   * Generates and persists a new one if it doesn't exist.
+   */
+  async getSigningKeyPair(): Promise<KeyPair> {
+    try {
+      const existing = await SecureStore.getItemAsync(SECURE_KEY_SIGN_KEYPAIR);
+      if (existing) return JSON.parse(existing) as KeyPair;
+
+      const newKp = CryptoService.generateSigningKeyPair();
+      await SecureStore.setItemAsync(SECURE_KEY_SIGN_KEYPAIR, JSON.stringify(newKp));
+      return newKp;
+    } catch (err) {
+      console.warn('[IdentityService] SecureStore unavailable for sign key, using AsyncStorage fallback', err);
+      const fallback = await StorageService.get<KeyPair>('sign_keypair_fallback');
+      if (fallback) return fallback;
+      
+      const newKp = CryptoService.generateSigningKeyPair();
+      await StorageService.set('sign_keypair_fallback', newKp);
+      return newKp;
+    }
   },
 };

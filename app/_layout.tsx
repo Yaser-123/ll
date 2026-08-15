@@ -22,6 +22,10 @@ import * as Location from 'expo-location';
 import { useLocationStore } from '../src/store/useLocationStore';
 import { useMeshQueue } from '../src/store/useMeshQueue';
 import { useAiStore } from '../src/store/useAiStore';
+import { useKeyStore } from '../src/store/useKeyStore';
+import { CryptoService } from '../src/services/CryptoService';
+import { IdentityService } from '../src/services/IdentityService';
+import { createMessage } from '../src/domain/Message';
 import { transportManager } from '../src/network/TransportManager';
 import { createBleTransport } from '../src/network/BleTransport';
 
@@ -54,6 +58,7 @@ export default function RootLayout() {
         loadEvents(),
         loadLocations(),
         useAiStore.getState().loadConversations(),
+        useKeyStore.getState().loadKeys(),
       ]);
 
       // Register real BLE transport AFTER identity is initialised so we
@@ -67,8 +72,22 @@ export default function RootLayout() {
       // All store mutation methods are safe to call outside of React components
       // via Zustand's getState() pattern.
       await transportManager.start({
-        onPeerDiscovered: (peer) => {
+        onPeerDiscovered: async (peer) => {
           usePeerStore.getState().upsertPeer(peer);
+          
+          // Send our public keys to the new peer so they can send us encrypted DMs
+          const encKeys = await IdentityService.getEncryptionKeyPair();
+          const signKeys = await IdentityService.getSigningKeyPair();
+          const keyMsg = createMessage({
+            senderId: deviceId,
+            recipientId: peer.id, // Direct message for key exchange
+            type: 'key_exchange',
+            text: JSON.stringify({
+              encryptionPublicKey: encKeys.publicKey,
+              signingPublicKey: signKeys.publicKey
+            })
+          });
+          transportManager.sendMessage(keyMsg);
         },
         onPeerLost: (peerId) => {
           usePeerStore.getState().markOffline(peerId);
@@ -87,7 +106,37 @@ export default function RootLayout() {
 
           // 2. Is this message for us?
           const isForUs = message.recipientId === selfId || message.recipientId === 'broadcast';
+          
+          // Security: Handle Key Exchange & Signature Verification
+          if (message.type === 'key_exchange' && message.text) {
+            try {
+              const keys = JSON.parse(message.text);
+              if (keys.encryptionPublicKey && keys.signingPublicKey) {
+                // Verify signature using the provided public key to establish TOFU trust
+                const payloadToSign = JSON.stringify({ ...message, signature: undefined });
+                if (message.signature && CryptoService.verifySignature(payloadToSign, message.signature, keys.signingPublicKey)) {
+                  useKeyStore.getState().saveKeys(message.senderId, keys);
+                  console.log(`[Security] Received and verified public keys for ${message.senderId}`);
+                }
+              }
+            } catch (e) {
+              console.error('[Security] Failed to process key_exchange', e);
+            }
+            // Do not display key_exchange in UI
+            if (isForUs) return;
+          }
+
           if (isForUs) {
+            // Verify signature for standard messages if we have the sender's key
+            const senderKeys = useKeyStore.getState().getKeys(message.senderId);
+            if (senderKeys && message.signature) {
+              const payloadToSign = JSON.stringify({ ...message, signature: undefined });
+              if (!CryptoService.verifySignature(payloadToSign, message.signature, senderKeys.signingPublicKey)) {
+                console.warn(`[Security] Dropping message ${message.id} from ${message.senderId} - INVALID SIGNATURE`);
+                return;
+              }
+            }
+
             if (message.type === 'sos_relay') {
               try {
                 const sosEvent = JSON.parse(message.text ?? '{}');
