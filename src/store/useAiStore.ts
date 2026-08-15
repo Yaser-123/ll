@@ -13,7 +13,7 @@ interface AiState {
   loadConversations: () => Promise<void>;
   createConversation: () => string;
   setActiveConversation: (id: string | null) => void;
-  addMessage: (conversationId: string, message: Omit<AiMessage, 'id'>) => Promise<void>;
+  addMessage: (conversationId: string, message: Partial<AiMessage> & { role: AiMessage['role'], text: string }) => Promise<void>;
   updateMessage: (conversationId: string, messageId: string, updater: (msg: AiMessage) => AiMessage, shouldPersist?: boolean) => Promise<void>;
   deleteConversation: (id: string) => Promise<void>;
   getActiveConversation: () => Conversation | undefined;
@@ -56,8 +56,8 @@ export const useAiStore = create<AiState>((set, get) => ({
     set({ activeConversationId: id });
   },
 
-  addMessage: async (conversationId: string, messageData: Omit<AiMessage, 'id'>) => {
-    const message: AiMessage = { ...messageData, id: uuid.v4() as string };
+  addMessage: async (conversationId: string, messageData: Partial<AiMessage> & { role: AiMessage['role'], text: string }) => {
+    const message: AiMessage = { id: uuid.v4() as string, ...messageData } as AiMessage;
     
     set((state) => {
       const conversations = state.conversations.map((conv) => {

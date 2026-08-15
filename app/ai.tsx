@@ -267,6 +267,13 @@ export default function AiScreen() {
         </TouchableOpacity>
       </View>
 
+      {/* Debug Overlay */}
+      <View style={{ backgroundColor: 'rgba(255,0,0,0.2)', padding: 4 }}>
+        <Text style={{ color: 'white', fontSize: 10 }}>
+          DEBUG: ID={activeConversationId} | Msgs={messages.length} | ConvExists={!!activeConversation}
+        </Text>
+      </View>
+
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
