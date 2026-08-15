@@ -179,6 +179,9 @@ export class BleTransport implements ITransport {
   /** Buffer for reassembling multi-part chunked BLE packets */
   private chunkBuffer = new Map<string, string[]>();
 
+  /** Cache of recently seen message IDs to prevent duplicate processing */
+  private seenMessageIds = new Set<string>();
+
   /** Maps Lifeline shortId to the most-recently-seen Device object */
   private peerDeviceObjectMap = new Map<string, Device>();
 
@@ -765,6 +768,17 @@ export class BleTransport implements ITransport {
         createdAt: parsed.timestamp || new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };
+
+      // Native transport deduplication
+      if (this.seenMessageIds.has(msg.id)) {
+        console.log(`[BleTransport] Dropping duplicate packet at transport layer: ${msg.id}`);
+        return;
+      }
+      this.seenMessageIds.add(msg.id);
+      if (this.seenMessageIds.size > 1000) {
+        const iter = this.seenMessageIds.keys();
+        this.seenMessageIds.delete(iter.next().value!);
+      }
 
       console.log(`[BleTransport] Received message ${msg.id} from ${senderShortId} → conv:${conversationId}`);
       this.events?.onMessageReceived(msg);
