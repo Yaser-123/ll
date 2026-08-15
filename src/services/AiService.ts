@@ -74,7 +74,7 @@ class AiService {
         await this.context!.completion(
           {
             prompt,
-            n_predict: 400,
+            n_predict: 120,
             temperature: 0.3, // Low temp for more accurate survival instructions
             emit_partial_completion: true,
             stop: ['<|im_end|>', '<|im_start|>'],
