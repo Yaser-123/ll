@@ -147,7 +147,9 @@ export default function AiScreen() {
         text: 'You are LifeLine AI, a hardcore offline emergency survival assistant. The user is in a life-or-death situation. Be EXTREMELY blunt, direct, and short. NO pleasantries. Give immediate, actionable, commanding survival instructions.',
       };
 
-      const aiMessages = [systemPrompt, ...history];
+      // Only send the last 6 messages to avoid overflowing the 2048 token context window
+      const recentHistory = history.slice(-6);
+      const aiMessages = [systemPrompt, ...recentHistory];
 
       // Generate response and stream updates
       let fullResponse = '';
@@ -295,7 +297,7 @@ export default function AiScreen() {
                       theme={{
                         colors: {
                           text: Colors.textPrimary,
-                          background: Colors.surfaceElevated,
+                          background: '#00000000',
                           border: Colors.surfaceBorder,
                           code: Colors.info,
                           link: Colors.primary,

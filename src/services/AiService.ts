@@ -26,7 +26,7 @@ class AiService {
       this.context = await initLlama({
         model: modelPath,
         // use_mlock: true, // Disabled: Can cause kernel throttling on 4GB RAM devices
-        n_ctx: 1024, // Restricted to save memory on 4GB RAM devices
+        n_ctx: 2048, // Restricted to save memory on 4GB RAM devices
         n_gpu_layers: Platform.OS === 'ios' ? 100 : 0, // Metal on iOS, CPU on Android unless Mali is strictly supported
       });
       console.log('[AiService] LlamaContext initialized successfully.');
@@ -74,7 +74,7 @@ class AiService {
         await this.context!.completion(
           {
             prompt,
-            n_predict: 1024,
+            n_predict: 400,
             temperature: 0.3, // Low temp for more accurate survival instructions
             emit_partial_completion: true,
             stop: ['<|im_end|>', '<|im_start|>'],
