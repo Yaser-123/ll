@@ -176,6 +176,9 @@ export class BleTransport implements ITransport {
   /** Queue for messages to peers that are currently offline or busy */
   private outbox = new Map<string, Message[]>();
 
+  /** Buffer for reassembling multi-part chunked BLE packets */
+  private chunkBuffer = new Map<string, string[]>();
+
   /** Maps Lifeline shortId to the most-recently-seen Device object */
   private peerDeviceObjectMap = new Map<string, Device>();
 
@@ -612,28 +615,52 @@ export class BleTransport implements ITransport {
         // Format for offline packet: Plaintext JSON (E2EE omitted per Module 3 guidelines)
         // Use selfShortId (not the full UUID) so the receiver can match it directly
         // against the peer store keys without UUID-to-shortId conversion.
+        const parsedPayload = (msg.type === 'sos_relay' || msg.type === 'sos_cancel' || msg.type === 'location_beacon') && msg.text
+          ? JSON.parse(msg.text)
+          : msg.text;
+
         const packet = JSON.stringify({
           protocol: 'lifeline/1.0',
           type: msg.type,
           messageId: msg.id,
-          senderId: this.selfShortId, // Original sender or relay node (we'll keep it simple for now, recipient verifies ID)
+          senderId: this.selfShortId,
           recipientId: msg.recipientId,
           timestamp: msg.createdAt,
-          payload: msg.text,
+          payload: parsedPayload,
           hopCount: msg.hopCount,
           maxHops: msg.maxHops,
         });
 
-        const base64Payload = Buffer.from(packet, 'utf8').toString('base64');
-        console.log(`[BleTransport] Writing ${packet.length} byte payload (${base64Payload.length} b64 chars)...`);
-
-        // writeWithResponse ensures the packet is fully received and ACKed before we continue.
-        // writeWithoutResponse silently truncates packets larger than MTU-3 bytes.
-        await connectedDevice.writeCharacteristicWithResponseForService(
-          MESSAGING_SERVICE_UUID,
-          WRITE_CHARACTERISTIC_UUID,
-          base64Payload
-        );
+        const CHUNK_SIZE = 300; // Safe payload size to fit inside 512-byte MTU limits
+        if (packet.length <= CHUNK_SIZE) {
+          const base64Payload = Buffer.from(packet, 'utf8').toString('base64');
+          console.log(`[BleTransport] Writing ${packet.length} byte payload (${base64Payload.length} b64 chars)...`);
+          await connectedDevice.writeCharacteristicWithResponseForService(
+            MESSAGING_SERVICE_UUID,
+            WRITE_CHARACTERISTIC_UUID,
+            base64Payload
+          );
+        } else {
+          // Manually chunk the packet to avoid Android Long Write negotiation timeouts
+          const totalChunks = Math.ceil(packet.length / CHUNK_SIZE);
+          console.log(`[BleTransport] Splitting ${packet.length} byte payload into ${totalChunks} chunks...`);
+          
+          for (let i = 0; i < totalChunks; i++) {
+            const chunkData = packet.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE);
+            const chunkStr = `C:${msg.id}:${i}:${totalChunks}:${chunkData}`;
+            const base64Chunk = Buffer.from(chunkStr, 'utf8').toString('base64');
+            
+            console.log(`[BleTransport] Writing chunk ${i+1}/${totalChunks} (${base64Chunk.length} b64 chars)...`);
+            await connectedDevice.writeCharacteristicWithResponseForService(
+              MESSAGING_SERVICE_UUID,
+              WRITE_CHARACTERISTIC_UUID,
+              base64Chunk
+            );
+            
+            // Add a tiny delay between chunks to let the remote GATT server process it
+            await new Promise(resolve => setTimeout(resolve, 50));
+          }
+        }
 
         console.log(`[BleTransport] Successfully sent msg ${msg.id} to ${shortId}`);
         uniqueMessages.shift(); // Remove from processing list
@@ -677,6 +704,33 @@ export class BleTransport implements ITransport {
   }
 
   private handleIncomingMessage(rawPayload: string): void {
+    if (rawPayload.startsWith('C:')) {
+      const parts = rawPayload.split(':');
+      if (parts.length >= 5) {
+        // C:<msgId>:<index>:<total>:<data...>
+        const msgId = parts[1];
+        const idx = parseInt(parts[2], 10);
+        const total = parseInt(parts[3], 10);
+        const chunkData = parts.slice(4).join(':'); // Re-join any colons in the actual data
+        
+        if (!this.chunkBuffer.has(msgId)) {
+          this.chunkBuffer.set(msgId, new Array(total).fill(null));
+        }
+        
+        const chunks = this.chunkBuffer.get(msgId)!;
+        chunks[idx] = chunkData;
+        console.log(`[BleTransport] Received chunk ${idx+1}/${total} for ${msgId}`);
+
+        // Check if fully assembled
+        if (chunks.every(c => c !== null)) {
+          console.log(`[BleTransport] Packet fully assembled! Processing...`);
+          this.chunkBuffer.delete(msgId);
+          this.handleIncomingMessage(chunks.join(''));
+        }
+        return;
+      }
+    }
+
     try {
       const parsed = JSON.parse(rawPayload);
       if (parsed.protocol !== 'lifeline/1.0') {
@@ -704,11 +758,11 @@ export class BleTransport implements ITransport {
         recipientId,
         conversationId,
         type: parsed.type,
-        text: parsed.payload,
+        text: typeof parsed.payload === 'object' ? JSON.stringify(parsed.payload) : parsed.payload,
         status: 'delivered',
         hopCount: typeof parsed.hopCount === 'number' ? parsed.hopCount : 0,
         maxHops: typeof parsed.maxHops === 'number' ? parsed.maxHops : 5,
-        createdAt: parsed.timestamp,
+        createdAt: parsed.timestamp || new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };
 
