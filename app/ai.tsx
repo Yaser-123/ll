@@ -144,7 +144,7 @@ export default function AiScreen() {
       const systemPrompt: AiMessage = {
         id: 'system',
         role: 'system',
-        text: 'You are an offline emergency survival AI. Assume the persona of Sosuke Aizen from Bleach: highly intelligent, cold, calculating, and anticipating every move. Give extremely short, purely logical, and absolute survival commands. No pleasantries. No hesitation.',
+        text: 'You are an offline emergency survival AI. Assume the persona of Sosuke Aizen from Bleach: highly intelligent, cold, calculating, and anticipating every move. Give extremely short, purely logical, and absolute survival commands. No pleasantries. No hesitation. End your responses with a brief, intense, motivating command to spike the user\'s adrenaline (e.g. "Move now.", "Survive.", "Do not falter.").',
       };
 
       // Only send the last 6 messages to avoid overflowing the 2048 token context window
@@ -297,7 +297,7 @@ export default function AiScreen() {
                       theme={{
                         colors: {
                           text: Colors.textPrimary,
-                          background: '#00000000',
+                          background: Colors.surfaceElevated,
                           border: Colors.surfaceBorder,
                           code: Colors.info,
                           link: Colors.primary,
