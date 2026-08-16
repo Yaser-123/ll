@@ -65,8 +65,11 @@ class TransportManager {
   }
 
   /** Send a message via all active transports */
-  async sendMessage(message: Message, recipientId?: string): Promise<void> {
+  async sendMessage(msg: Message, recipientId?: string): Promise<void> {
     
+    // Clone to prevent mutating UI state when encrypting or signing
+    const message = { ...msg };
+
     // 1. Encrypt E2E DMs
     if (message.type === 'text' && message.recipientId !== 'broadcast' && !message.encrypted && message.text) {
       const peerKeys = useKeyStore.getState().getKeys(message.recipientId);
@@ -91,7 +94,7 @@ class TransportManager {
     if (!message.signature) {
       try {
         const mySignKeys = await IdentityService.getSigningKeyPair();
-        const payloadToSign = JSON.stringify({ ...message, signature: undefined });
+        const payloadToSign = CryptoService.canonicalizeMessage(message);
         message.signature = CryptoService.signPayload(payloadToSign, mySignKeys.secretKey);
       } catch (err) {
         console.error('[TransportManager] Failed to sign message', err);

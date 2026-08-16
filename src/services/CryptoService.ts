@@ -104,5 +104,13 @@ export const CryptoService = {
     } catch (err) {
       return false;
     }
+  },
+
+  /**
+   * Creates a deterministic string representation of a message for signing.
+   * This avoids issues where JSON.stringify produces different results on the sender vs receiver.
+   */
+  canonicalizeMessage(message: { id: string; senderId: string; recipientId: string; type: string; text?: string }): string {
+    return `${message.id}:${message.senderId}:${message.recipientId}:${message.type}:${message.text || ''}`;
   }
 };

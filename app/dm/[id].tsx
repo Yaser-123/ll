@@ -73,8 +73,11 @@ export default function ChatScreen() {
     <SafeAreaView style={styles.safe} edges={['bottom']}>
       <NetworkStatusBar status={networkStatus} />
 
-      <View style={styles.peerHeader}>
+      <View style={[styles.peerHeader, { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }]}>
         <Text style={styles.peerHeaderText}>Private Chat with <Text style={{fontWeight: 'bold'}}>{peerName}</Text></Text>
+        <TouchableOpacity onPress={() => useMessageStore.getState().clearConversation(conversationId)}>
+          <Text style={{ color: Colors.danger, fontSize: 12 }}>Wipe Chat</Text>
+        </TouchableOpacity>
       </View>
 
       <KeyboardAvoidingView 

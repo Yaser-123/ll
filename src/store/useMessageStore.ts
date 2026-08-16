@@ -28,6 +28,7 @@ interface MessageState {
   hasSeenMessage: (id: string) => boolean;
   markMessageSeen: (id: string) => Promise<void>;
   _persistMessages: (messages: Message[]) => Promise<void>;
+  clearConversation: (conversationId: string) => Promise<void>;
 }
 
 const SEEN_MESSAGES_KEY = 'seen_messages';
@@ -132,5 +133,11 @@ export const useMessageStore = create<MessageState>((set, get) => ({
     if (newSeen.size % 10 === 0) {
       await StorageService.set(SEEN_MESSAGES_KEY, Array.from(newSeen).slice(-MAX_SEEN));
     }
+  },
+
+  clearConversation: async (conversationId: string) => {
+    const messages = get().messages.filter(m => m.conversationId !== conversationId);
+    set({ messages });
+    await (get() as any)._persistMessages(messages);
   },
 }));

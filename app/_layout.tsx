@@ -117,7 +117,7 @@ export default function RootLayout() {
               const keys = JSON.parse(message.text);
               if (keys.encryptionPublicKey && keys.signingPublicKey) {
                 // Verify signature using the provided public key to establish TOFU trust
-                const payloadToSign = JSON.stringify({ ...message, signature: undefined });
+                const payloadToSign = CryptoService.canonicalizeMessage(message);
                 if (message.signature && CryptoService.verifySignature(payloadToSign, message.signature, keys.signingPublicKey)) {
                   useKeyStore.getState().saveKeys(message.senderId, keys);
                   console.log(`[Security] Received and verified public keys for ${message.senderId}`);
@@ -134,7 +134,7 @@ export default function RootLayout() {
             // Verify signature for standard messages if we have the sender's key
             const senderKeys = useKeyStore.getState().getKeys(message.senderId);
             if (senderKeys && message.signature) {
-              const payloadToSign = JSON.stringify({ ...message, signature: undefined });
+              const payloadToSign = CryptoService.canonicalizeMessage(message);
               if (!CryptoService.verifySignature(payloadToSign, message.signature, senderKeys.signingPublicKey)) {
                 console.warn(`[Security] Dropping message ${message.id} from ${message.senderId} - INVALID SIGNATURE`);
                 return;
@@ -182,6 +182,25 @@ export default function RootLayout() {
                 }
               } catch (e) {}
             } else {
+              if (message.encrypted && message.text) {
+                try {
+                  const senderKeys = useKeyStore.getState().getKeys(message.senderId);
+                  const myEncKeys = await IdentityService.getEncryptionKeyPair();
+                  if (senderKeys) {
+                    const decrypted = CryptoService.decryptDM(message.text, senderKeys.encryptionPublicKey, myEncKeys.secretKey);
+                    if (decrypted) {
+                      message.text = decrypted;
+                      message.encrypted = false;
+                    } else {
+                      message.text = '[Decryption Failed]';
+                    }
+                  } else {
+                    message.text = '[Awaiting Keys to Decrypt]';
+                  }
+                } catch (err) {
+                  message.text = '[Decryption Error]';
+                }
+              }
               msgStore.addMessage(message);
             }
           }
