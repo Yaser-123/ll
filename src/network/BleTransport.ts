@@ -218,6 +218,11 @@ export class BleTransport implements ITransport {
   // ─────────────────────────────────────────────────────────────────────────
 
   async start(events: TransportEvents): Promise<void> {
+    if (this._state === 'scanning' || this._state === 'starting') {
+      console.log('[BleTransport] Already starting or running. Ignoring double start().');
+      this.events = events; // Update events just in case
+      return;
+    }
     this.events = events;
     this._state = 'starting';
 
