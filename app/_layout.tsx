@@ -48,6 +48,7 @@ export default function RootLayout() {
   const { loadLocations } = useLocationStore();
 
   useEffect(() => {
+    let isMounted = true;
     let cleanup: (() => void) | undefined;
 
     async function bootstrap() {
@@ -61,6 +62,8 @@ export default function RootLayout() {
         useAiStore.getState().loadConversations(),
         useKeyStore.getState().loadKeys(),
       ]);
+
+      if (!isMounted) return; // Prevent orphaned instances if unmounted during await
 
       // Register real BLE transport AFTER identity is initialised so we
       // have a stable deviceId and displayName to advertise.
@@ -261,6 +264,7 @@ export default function RootLayout() {
     // React will call this on unmount (and between Strict Mode double-renders).
     // This ensures the old transport is fully stopped before a new one starts.
     return () => {
+      isMounted = false;
       if (cleanup) cleanup();
       if (locationSubscription) locationSubscription.remove();
     };
