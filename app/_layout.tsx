@@ -8,7 +8,7 @@
 import React, { useEffect } from 'react';
 import { Tabs } from 'expo-router';
 import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
-import { Audio } from 'expo-av';
+import { createAudioPlayer, setAudioModeAsync } from 'expo-audio';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Vibration } from 'react-native';
@@ -154,17 +154,14 @@ export default function RootLayout() {
                   
                   // Play loud siren alarm
                   try {
-                    const { sound } = await Audio.Sound.createAsync(
-                      require('../assets/alarm.wav')
-                    );
+                    const player = createAudioPlayer(require('../assets/alarm.wav'));
                     // Force sound to play even in silent mode (iOS/Android)
-                    await Audio.setAudioModeAsync({
-                      playsInSilentModeIOS: true,
-                      staysActiveInBackground: true,
-                      shouldDuckAndroid: true,
-                      playThroughEarpieceAndroid: false
+                    await setAudioModeAsync({
+                      playsInSilentMode: true,
+                      shouldPlayInBackground: true,
+                      interruptionMode: 'mixWithOthers'
                     });
-                    await sound.playAsync();
+                    player.play();
                   } catch (audioErr) {
                     console.error('[Mesh] Failed to play SOS alarm', audioErr);
                   }
