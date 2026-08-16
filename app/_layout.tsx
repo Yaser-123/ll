@@ -64,9 +64,9 @@ export default function RootLayout() {
 
       // Register real BLE transport AFTER identity is initialised so we
       // have a stable deviceId and displayName to advertise.
-      const { deviceId, displayName } = useDeviceStore.getState();
+      const { deviceId } = useDeviceStore.getState();
       transportManager.registerTransport(
-        createBleTransport(deviceId, displayName)
+        createBleTransport(deviceId)
       );
 
       // Start all registered transports and wire their events to stores.

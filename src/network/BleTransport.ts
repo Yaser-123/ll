@@ -160,8 +160,11 @@ export class BleTransport implements ITransport {
 
   /** This device's Lifeline identity (set at construction time) */
   private readonly selfDeviceId: string;
-  private readonly selfDisplayName: string;
   private readonly selfShortId: string;
+  
+  private get selfDisplayName(): string {
+    return useDeviceStore.getState().displayName;
+  }
 
   /** BLE Central manager (react-native-ble-plx) */
   private bleManager: BleManager | null = null;
@@ -205,9 +208,8 @@ export class BleTransport implements ITransport {
   /** Guards against concurrent GATT connection attempts */
   private isConnecting = false;
 
-  constructor(deviceId: string, displayName: string) {
+  constructor(deviceId: string) {
     this.selfDeviceId = deviceId;
-    this.selfDisplayName = displayName;
     this.selfShortId = makeShortId(deviceId);
   }
 
@@ -255,7 +257,18 @@ export class BleTransport implements ITransport {
     }
 
     try {
-      // 3. Create BleManager and setup reactive listener
+      // 3. Subscribe to display name changes to restart advertising dynamically
+      useDeviceStore.subscribe((state, prevState) => {
+        if (state.displayName !== prevState.displayName && this._state === 'scanning') {
+          console.log('[BleTransport] Display name updated. Restarting advertising...');
+          const localName = buildLocalName(this.selfDeviceId, state.displayName);
+          BleAdvertiser.stopAdvertising()
+            .then(() => BleAdvertiser.startAdvertising(LIFELINE_SERVICE_UUID, localName))
+            .catch(console.warn);
+        }
+      });
+
+      // 4. Create BleManager and setup reactive listener
       this.bleManager = new BleManager();
       
       // We set state to 'scanning' right away so the onStateChange listener triggers the start
@@ -449,6 +462,7 @@ export class BleTransport implements ITransport {
     this.peerDeviceObjectMap.set(shortId, device);  // Always keep the freshest Device ref
 
     const existingPeer = this.activePeers.get(shortId);
+    const nameChanged = existingPeer && existingPeer.displayName !== displayName;
 
     const peer: Peer = {
       id: shortId,
@@ -462,17 +476,22 @@ export class BleTransport implements ITransport {
 
     this.activePeers.set(shortId, peer);
 
-    if (!wasAlreadyOnline) {
-      // Only call onPeerDiscovered on first appearance or when coming back online
+    if (!wasAlreadyOnline || nameChanged) {
+      // Only call onPeerDiscovered on first appearance, coming back online, or if the name changed
       this.events?.onPeerDiscovered(peer);
       
-      console.log(
-        `[BleTransport] Peer discovered: ${displayName} (${shortId}) RSSI=${device.rssi}`
-      );
+      if (!wasAlreadyOnline) {
+        console.log(
+          `[BleTransport] Peer discovered: ${displayName} (${shortId}) RSSI=${device.rssi}`
+        );
+      } else {
+        console.log(`[BleTransport] Peer name changed to: ${displayName} (${shortId})`);
+      }
+      
       // Flush outbox in case we have queued messages, passing the fresh Device object
       this.flushOutbox(shortId, device);
     } else {
-      // Already online — update device ref in case MAC rotated
+      // Already online and name hasn't changed — update device ref in case MAC rotated
       this.flushOutbox(shortId, device);
     }
   }
@@ -782,8 +801,7 @@ export class BleTransport implements ITransport {
 
 /** Factory function — preferred over `new BleTransport()` at call sites. */
 export function createBleTransport(
-  deviceId: string,
-  displayName: string
+  deviceId: string
 ): BleTransport {
-  return new BleTransport(deviceId, displayName);
+  return new BleTransport(deviceId);
 }
