@@ -458,6 +458,7 @@ export class BleTransport implements ITransport {
       this.activePeers.get(shortId)!.status === 'online';
 
     this.peerLastSeen.set(shortId, now);
+    // console.log(`[BleTransport] Updated lastSeen for ${shortId} (Scan)`);
     this.peerDeviceMap.set(shortId, device.id);
     this.peerDeviceObjectMap.set(shortId, device);  // Always keep the freshest Device ref
 
@@ -503,14 +504,15 @@ export class BleTransport implements ITransport {
   private pruneStale(): void {
     const now = Date.now();
     for (const [shortId, lastSeen] of this.peerLastSeen.entries()) {
-      if (now - lastSeen > PEER_TIMEOUT_MS) {
+      const elapsed = now - lastSeen;
+      if (elapsed > PEER_TIMEOUT_MS) {
         const peer = this.activePeers.get(shortId);
         if (peer) {
           this.activePeers.delete(shortId);
           this.peerLastSeen.delete(shortId);
           this.events?.onPeerLost(shortId);
           console.log(
-            `[BleTransport] Peer timed out: ${peer.displayName} (${shortId})`
+            `[BleTransport] Peer timed out: ${peer.displayName} (${shortId}) - Elapsed: ${elapsed}ms > Threshold: ${PEER_TIMEOUT_MS}ms`
           );
         }
       }
@@ -641,6 +643,7 @@ export class BleTransport implements ITransport {
         
         // Refresh last seen since we just had a successful GATT exchange
         this.peerLastSeen.set(shortId, Date.now());
+        console.log(`[BleTransport] Updated lastSeen for ${shortId} (GATT Send)`);
 
         uniqueMessages.shift(); // Remove from processing list
 
@@ -732,6 +735,7 @@ export class BleTransport implements ITransport {
       // to prevent them from timing out while we are chatting.
       if (senderShortId && this.activePeers.has(senderShortId)) {
         this.peerLastSeen.set(senderShortId, Date.now());
+        console.log(`[BleTransport] Updated lastSeen for ${senderShortId} (GATT Receive)`);
       }
       
       const recipientId = parsed.recipientId ?? 'broadcast';
