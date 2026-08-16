@@ -80,7 +80,7 @@ const LOCAL_NAME_PREFIX = 'LF:';
 const SHORT_ID_LENGTH = 12;
 
 /** Mark a peer offline if no advertisement received in this window. */
-const PEER_TIMEOUT_MS = 30_000; // 30 seconds
+const PEER_TIMEOUT_MS = 60_000; // 60 seconds
 
 /** How often to prune stale peers. */
 const STALE_CHECK_INTERVAL_MS = 10_000; // 10 seconds
@@ -638,6 +638,10 @@ export class BleTransport implements ITransport {
         }
 
         console.log(`[BleTransport] Successfully sent msg ${msg.id} to ${shortId}`);
+        
+        // Refresh last seen since we just had a successful GATT exchange
+        this.peerLastSeen.set(shortId, Date.now());
+
         uniqueMessages.shift(); // Remove from processing list
 
         // Notify app layer of delivery success (we only reliably know the first hop succeeded)
@@ -723,6 +727,12 @@ export class BleTransport implements ITransport {
       // or a shortId (from a newer client). We always normalize it to a shortId.
       const rawSenderId: string = parsed.senderId ?? '';
       const senderShortId = rawSenderId.replace(/-/g, '').slice(0, 12).toUpperCase();
+      
+      // We just received data from this peer, so refresh their last seen timestamp
+      // to prevent them from timing out while we are chatting.
+      if (senderShortId && this.activePeers.has(senderShortId)) {
+        this.peerLastSeen.set(senderShortId, Date.now());
+      }
       
       const recipientId = parsed.recipientId ?? 'broadcast';
       const conversationId = makeConversationId(senderShortId, recipientId === 'broadcast' ? 'broadcast' : this.selfShortId);
