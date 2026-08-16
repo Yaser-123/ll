@@ -10,6 +10,7 @@ import {
   OfflineManager,
 } from '@maplibre/maplibre-react-native';
 import { useLocalSearchParams } from 'expo-router';
+import * as Location from 'expo-location';
 
 import { Colors, Typography, Spacing, Radius, Shadow } from '../src/theme';
 import { useLocationStore } from '../src/store/useLocationStore';
@@ -164,9 +165,39 @@ export default function MapScreen() {
           zoom: 13,
           duration: 1000,
         });
+      } else {
+        // No destination and no myLoc, try to fetch location
+        fetchAndCenterLocation();
       }
     }
   }, [mapReady, params.lat, params.lng, myLoc, networkStatus]);
+
+  const fetchAndCenterLocation = async () => {
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        alert('Permission to access location was denied');
+        return;
+      }
+      const location = await Location.getCurrentPositionAsync({});
+      if (deviceId) {
+        useLocationStore.getState().upsertLocation({
+          deviceId,
+          latitude: location.coords.latitude,
+          longitude: location.coords.longitude,
+          timestamp: new Date().toISOString(),
+          isSelf: true,
+        });
+      }
+      cameraRef.current?.flyTo({
+        center: [location.coords.longitude, location.coords.latitude],
+        zoom: 15,
+        duration: 1000,
+      });
+    } catch (e) {
+      console.warn('[Map] Could not fetch location', e);
+    }
+  };
 
   const searchRegion = async () => {
     if (!searchQuery.trim()) return;
@@ -363,22 +394,7 @@ export default function MapScreen() {
         <View style={styles.controlsOverlay}>
           <TouchableOpacity
             style={styles.controlBtn}
-            onPress={() => {
-              if (deviceId && myLoc) {
-                useLocationStore.getState().upsertLocation({
-                  deviceId,
-                  latitude: myLoc.latitude,
-                  longitude: myLoc.longitude,
-                  timestamp: new Date().toISOString(),
-                  isSelf: true,
-                });
-                cameraRef.current?.flyTo({
-                  center: [myLoc.longitude, myLoc.latitude],
-                  zoom: 15,
-                  duration: 1000
-                });
-              }
-            }}
+            onPress={fetchAndCenterLocation}
           >
             <Text style={styles.controlBtnText}>MY LOCATION</Text>
           </TouchableOpacity>
