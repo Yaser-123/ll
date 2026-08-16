@@ -45,6 +45,8 @@ import { Platform } from 'react-native';
 import { BleManager, State, type Device, type Subscription } from 'react-native-ble-plx';
 import * as BleAdvertiser from 'lifeline-ble-advertiser';
 import { Buffer } from 'buffer';
+import { StorageService } from '../services/StorageService';
+import { useDeviceStore } from '../store/useDeviceStore';
 import { requestBlePermissions } from '../services/PermissionService';
 import type { ITransport, TransportEvents, TransportState } from './ITransport';
 import type { Peer, TransportType } from '../domain/Peer';
@@ -253,14 +255,20 @@ export class BleTransport implements ITransport {
     }
 
     try {
-      // 3. Create BleManager and wait for Bluetooth to be powered on
+      // 3. Create BleManager and setup reactive listener
       this.bleManager = new BleManager();
       
+      // We set state to 'scanning' right away so the onStateChange listener triggers the start
+      this._state = 'scanning';
+
       this.bleStateSubscription = this.bleManager.onStateChange(async (state) => {
+        useDeviceStore.getState().setBluetoothState(state);
+        
         if (state === State.PoweredOn && this._state === 'scanning') {
-          console.log('[BleTransport] Bluetooth powered ON. Resuming mesh...');
+          console.log('[BleTransport] Bluetooth powered ON. Starting/Resuming mesh...');
           const localName = buildLocalName(this.selfDeviceId, this.selfDisplayName);
           await BleAdvertiser.startAdvertising(LIFELINE_SERVICE_UUID, localName).catch(console.warn);
+          console.log(`[BleTransport] Advertising as: ${localName}`);
           this.startScanSession();
         } else if (state === State.PoweredOff) {
           console.log('[BleTransport] Bluetooth powered OFF. Halting mesh...');
@@ -274,15 +282,15 @@ export class BleTransport implements ITransport {
         }
       }, true);
 
-      await this.waitForBlePoweredOn();
-
-      // 4. Start advertising (so other devices can discover us)
-      const localName = buildLocalName(this.selfDeviceId, this.selfDisplayName);
-      await BleAdvertiser.startAdvertising(LIFELINE_SERVICE_UUID, localName);
-      console.log(`[BleTransport] Advertising as: ${localName}`);
-
-      // 5. Start scanning (so we can discover other devices)
-      this.startScanSession();
+      // On Android, if it's currently off, explicitly prompt the user to enable it
+      if (Platform.OS === 'android') {
+        const currentState = await this.bleManager.state();
+        if (currentState === State.PoweredOff) {
+          this.bleManager.enable().catch(() => {
+            // User denied the prompt, UI will show blocking screen via bluetoothState
+          });
+        }
+      }
 
       // 6. Listen for incoming messages on GATT Server
       this.nativeMessageSub = BleAdvertiser.addMessageListener((event) => {
@@ -295,7 +303,6 @@ export class BleTransport implements ITransport {
         STALE_CHECK_INTERVAL_MS
       );
 
-      this._state = 'scanning';
       console.log('[BleTransport] Started. Service UUID:', LIFELINE_SERVICE_UUID);
     } catch (err) {
       this._state = 'error';
@@ -366,68 +373,7 @@ export class BleTransport implements ITransport {
   // BLE internals
   // ─────────────────────────────────────────────────────────────────────────
 
-  /**
-   * Wait until the BLE adapter is powered on.
-   * On Android we can request enable; on iOS we must wait for user action.
-   * Times out after 15 seconds.
-   */
-  private waitForBlePoweredOn(): Promise<void> {
-    return new Promise((resolve, reject) => {
-      const manager = this.bleManager!;
-      let settled = false;
-
-      const settle = (fn: () => void) => {
-        if (!settled) {
-          settled = true;
-          sub?.remove();
-          clearTimeout(timeout);
-          fn();
-        }
-      };
-
-      const timeout = setTimeout(() => {
-        settle(() => reject(new Error('Bluetooth did not power on within 15 seconds')));
-      }, 15_000);
-
-      let sub: Subscription | null = null;
-
-      // Check current state first to avoid race condition
-      manager.state().then((currentState) => {
-        if (currentState === State.PoweredOn) {
-          settle(resolve);
-          return;
-        }
-
-        // On Android, try to programmatically enable Bluetooth
-        if (Platform.OS === 'android' && currentState === State.PoweredOff) {
-          manager.enable().catch(() => {
-            // enable() can throw if already in progress or permission denied
-            // Continue and watch for state change
-          });
-        }
-
-        // Subscribe to state changes
-        sub = manager.onStateChange((newState) => {
-          if (newState === State.PoweredOn) {
-            settle(resolve);
-          } else if (
-            newState === State.Unsupported ||
-            newState === State.Unauthorized
-          ) {
-            settle(() =>
-              reject(
-                new Error(
-                  newState === State.Unsupported
-                    ? 'Bluetooth LE is not supported on this device.'
-                    : 'Bluetooth permission not granted.'
-                )
-              )
-            );
-          }
-        }, true);
-      });
-    });
-  }
+  // waitForBlePoweredOn removed as it is now purely reactive
 
   /**
    * Start a BLE scan session, filtering for devices that advertise the

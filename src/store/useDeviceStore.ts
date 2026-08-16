@@ -13,11 +13,13 @@ interface DeviceState {
   displayName: string;
   isInitialised: boolean;
   networkStatus: NetworkStatus;
+  bluetoothState: string;
 
   // Actions
   initDevice: () => Promise<void>;
   setDisplayName: (name: string) => Promise<void>;
   updateNetworkStatus: (status: NetworkStatus) => void;
+  setBluetoothState: (state: string) => void;
 }
 
 const defaultNetworkStatus: NetworkStatus = {
@@ -31,6 +33,7 @@ export const useDeviceStore = create<DeviceState>((set) => ({
   displayName: '',
   isInitialised: false,
   networkStatus: defaultNetworkStatus,
+  bluetoothState: 'Unknown',
 
   initDevice: async () => {
     const [uuid, displayName] = await Promise.all([
@@ -48,7 +51,7 @@ export const useDeviceStore = create<DeviceState>((set) => ({
     set({ displayName: name });
   },
 
-  updateNetworkStatus: (status: NetworkStatus) => {
-    set({ networkStatus: status });
-  },
+  updateNetworkStatus: (status: NetworkStatus) => set({ networkStatus: status }),
+
+  setBluetoothState: (state: string) => set({ bluetoothState: state }),
 }));

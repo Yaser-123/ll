@@ -13,7 +13,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { Vibration } from 'react-native';
 
-import { Colors, Typography } from '../src/theme';
+import { Colors, Typography, Radius } from '../src/theme';
 import { useDeviceStore } from '../src/store/useDeviceStore';
 
 import { usePeerStore } from '../src/store/usePeerStore';
@@ -40,7 +40,7 @@ function TabIcon({ symbol, focused }: { symbol: string; focused: boolean }) {
 }
 
 export default function RootLayout() {
-  const { initDevice, isInitialised, updateNetworkStatus } = useDeviceStore();
+  const { initDevice, isInitialised, updateNetworkStatus, bluetoothState } = useDeviceStore();
   const { loadPeers } = usePeerStore();
   const { loadMessages } = useMessageStore();
   const { loadQueue } = useMeshQueue();
@@ -278,6 +278,22 @@ export default function RootLayout() {
     );
   }
 
+  if (bluetoothState === 'PoweredOff') {
+    return (
+      <View style={styles.splash}>
+        <StatusBar style="light" />
+        <View style={styles.blockingContainer}>
+          <Text style={styles.blockingIcon}>✕</Text>
+          <Text style={styles.blockingTitle}>BLUETOOTH DISABLED</Text>
+          <Text style={styles.blockingSub}>
+            LifeLine requires Bluetooth to communicate with the offline mesh network.
+            Please turn on Bluetooth to continue.
+          </Text>
+        </View>
+      </View>
+    );
+  }
+
   return (
     <SafeAreaProvider>
       <StatusBar style="light" />
@@ -370,6 +386,34 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
     marginTop: 8,
     letterSpacing: 2,
+  },
+  blockingContainer: {
+    padding: 32,
+    alignItems: 'center',
+    backgroundColor: Colors.surface,
+    margin: 24,
+    borderRadius: Radius.lg,
+    borderWidth: 1,
+    borderColor: Colors.dangerMuted,
+  },
+  blockingIcon: {
+    fontSize: 48,
+    color: Colors.danger,
+    marginBottom: 16,
+  },
+  blockingTitle: {
+    fontSize: Typography.size.lg,
+    fontWeight: '800',
+    color: Colors.danger,
+    letterSpacing: 2,
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  blockingSub: {
+    fontSize: Typography.size.md,
+    color: Colors.textSecondary,
+    textAlign: 'center',
+    lineHeight: 24,
   },
   tabBar: {
     backgroundColor: Colors.surface,
