@@ -173,13 +173,37 @@ export default function MapScreen() {
   }, [mapReady, params.lat, params.lng, myLoc, networkStatus]);
 
   const fetchAndCenterLocation = async () => {
+    // 1. If we already have a location from the background tracker, use it instantly!
+    if (myLoc) {
+      cameraRef.current?.flyTo({
+        center: [myLoc.longitude, myLoc.latitude],
+        zoom: 15,
+        duration: 1000,
+      });
+      return;
+    }
+
+    // 2. Otherwise try to fetch a fresh one
     try {
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') {
         alert('Permission to access location was denied');
         return;
       }
-      const location = await Location.getCurrentPositionAsync({});
+      
+      // Use a timeout so it doesn't hang forever indoors
+      const location = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
+        timeout: 5000,
+      }).catch(async () => {
+        return await Location.getLastKnownPositionAsync();
+      });
+
+      if (!location) {
+        alert('Could not determine your location.');
+        return;
+      }
+
       if (deviceId) {
         useLocationStore.getState().upsertLocation({
           deviceId,
@@ -196,6 +220,7 @@ export default function MapScreen() {
       });
     } catch (e) {
       console.warn('[Map] Could not fetch location', e);
+      alert('Location fetch failed.');
     }
   };
 

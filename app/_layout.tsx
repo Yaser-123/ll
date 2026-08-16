@@ -50,6 +50,7 @@ export default function RootLayout() {
   useEffect(() => {
     let isMounted = true;
     let cleanup: (() => void) | undefined;
+    let locationSubscription: Location.LocationSubscription | null = null;
 
     async function bootstrap() {
       await Promise.all([
@@ -246,39 +247,36 @@ export default function RootLayout() {
       cleanup = () => {
         clearInterval(interval);
         transportManager.stop();
+        if (locationSubscription) locationSubscription.remove();
       };
+
+      // Now start Location Tracking safely after BLE permissions are resolved
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status === 'granted') {
+        locationSubscription = await Location.watchPositionAsync(
+          {
+            accuracy: Location.Accuracy.Balanced,
+            distanceInterval: 10, // Update every 10 meters
+            timeInterval: 10000, // Or every 10 seconds
+          },
+          (loc) => {
+            const deviceId = useDeviceStore.getState().deviceId;
+            if (deviceId) {
+              useLocationStore.getState().upsertLocation({
+                deviceId,
+                latitude: loc.coords.latitude,
+                longitude: loc.coords.longitude,
+                timestamp: new Date().toISOString(),
+                isSelf: true,
+              });
+            }
+          }
+        );
+      }
     }
 
     bootstrap();
 
-    // Start Location Tracking
-    let locationSubscription: Location.LocationSubscription | null = null;
-    const startLocationTracking = async () => {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') return;
-
-      locationSubscription = await Location.watchPositionAsync(
-        {
-          accuracy: Location.Accuracy.Balanced,
-          distanceInterval: 10, // Update every 10 meters
-          timeInterval: 10000, // Or every 10 seconds
-        },
-        (loc) => {
-          const deviceId = useDeviceStore.getState().deviceId;
-          if (deviceId) {
-            useLocationStore.getState().upsertLocation({
-              deviceId,
-              latitude: loc.coords.latitude,
-              longitude: loc.coords.longitude,
-              timestamp: new Date().toISOString(),
-              isSelf: true,
-            });
-          }
-        }
-      );
-    };
-
-    startLocationTracking();
 
     // React will call this on unmount (and between Strict Mode double-renders).
     // This ensures the old transport is fully stopped before a new one starts.
